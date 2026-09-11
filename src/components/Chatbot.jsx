@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
-const API_URL = "https://bot-ai-1-372t.onrender.com/chat";
+const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
 const SPEAK_URL = "https://bot-ai-1-372t.onrender.com/api/speak";
 const AUTO_SPEAK = false;
 
