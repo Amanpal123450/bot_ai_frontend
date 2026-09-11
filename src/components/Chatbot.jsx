@@ -1,23 +1,35 @@
 import React, { useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
-const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
-const SPEAK_URL = "https://bot-ai-1-372t.onrender.com/api/speak";
-const AUTO_SPEAK = false;
+
+const API_URL = "https://bot-ai-oygp.onrender.com/api/chat";
+const SPEAK_URL = "https://bot-ai-oygp.onrender.com/api/speak";
 
 async function playNaturalVoice(text) {
   try {
     const res = await fetch(SPEAK_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ text }),
     });
 
+    if (!res.ok) {
+      throw new Error("Voice generation failed");
+    }
+
     const data = await res.json();
 
-    const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+    if (!data.audio) {
+      throw new Error("No audio received");
+    }
 
-    audio.play();
+    const audio = new Audio(
+      `data:audio/wav;base64,${data.audio}`
+    );
+
+    await audio.play();
   } catch (err) {
     console.error("Auto-speak failed:", err);
   }
@@ -33,7 +45,7 @@ function Chatbot() {
 
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async (userText) => {
+  const handleSend = async (userText, voiceMode = false) => {
     setMessages((prev) => [
       ...prev,
       {
@@ -55,10 +67,16 @@ function Chatbot() {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error("Chat API failed");
+      }
+
       const data = await res.json();
 
-      const answer = data.answer || "Sorry, something went wrong.";
+      const answer =
+        data.answer || "Sorry, something went wrong.";
 
+      // Show AI text response
       setMessages((prev) => [
         ...prev,
         {
@@ -67,10 +85,14 @@ function Chatbot() {
         },
       ]);
 
-      if (AUTO_SPEAK) {
-        playNaturalVoice(answer);
+      // 🔊 Only speak if question came from microphone
+      if (voiceMode) {
+        await playNaturalVoice(answer);
       }
+
     } catch (err) {
+      console.error("Chat Error:", err);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -118,13 +140,25 @@ function Chatbot() {
         "
       >
         {messages.map((m, i) => (
-          <ChatMessage key={i} sender={m.sender} text={m.text} />
+          <ChatMessage
+            key={i}
+            sender={m.sender}
+            text={m.text}
+          />
         ))}
 
-        {loading && <ChatMessage sender="bot" text="Typing..." />}
+        {loading && (
+          <ChatMessage
+            sender="bot"
+            text="Typing..."
+          />
+        )}
       </div>
 
-      <ChatInput onSend={handleSend} disabled={loading} />
+      <ChatInput
+        onSend={handleSend}
+        disabled={loading}
+      />
     </div>
   );
 }

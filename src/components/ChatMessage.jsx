@@ -1,7 +1,7 @@
 import { Loader2, Volume2 } from "lucide-react";
 import React, { useState } from "react";
 
-const API_BASE = "https://bot-ai-1-372t.onrender.com";
+const API_BASE = "https://bot-ai-oygp.onrender.com";
 
 async function playNaturalVoice(text, setSpeaking) {
   try {
@@ -23,9 +23,9 @@ async function playNaturalVoice(text, setSpeaking) {
 
     audio.play();
   } catch (err) {
-    setSpeaking(false);
+    setSpeaking(false) ;
 
-    alert("Voice generate nahi ho paayi. Baad mein try karein.");
+    alert("Voice generate nahi ho paayi. Baad mein try karein.")
   }
 }
 
