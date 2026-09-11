@@ -37,9 +37,9 @@ function ChatInput({ onSend, disabled }) {
 
     const recognition = new SpeechRecognition();
 
-    recognition.lang = "hi-IN";
+    recognition.lang = "hi-IN"; 
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = false
     recognition.onstart = () => setListening(true);
     recognition.onend = () => setListening(false);
     recognition.onerror = () => setListening(false);
