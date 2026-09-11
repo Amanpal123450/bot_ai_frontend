@@ -1,38 +1,82 @@
 import React, { useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+const API_URL = "https://bot-ai-1-372t.onrender.com/chat";
+const SPEAK_URL = "https://bot-ai-1-372t.onrender.com/api/speak";
+const AUTO_SPEAK = false;
 
-const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
+async function playNaturalVoice(text) {
+  try {
+    const res = await fetch(SPEAK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+
+    const data = await res.json();
+
+    const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+
+    audio.play();
+  } catch (err) {
+    console.error("Auto-speak failed:", err);
+  }
+}
 
 function Chatbot() {
   const [messages, setMessages] = useState([
-  {
-    sender: "bot",
-    text: "Hi! You can ask me anything about the Kikoo contest."
-  },
-]);
+    {
+      sender: "bot",
+      text: "Hi! You can ask me anything about the Kikoo contest.",
+    },
+  ]);
+
   const [loading, setLoading] = useState(false);
 
   const handleSend = async (userText) => {
-    setMessages((prev) => [...prev, { sender: "user", text: userText }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "user",
+        text: userText,
+      },
+    ]);
+
     setLoading(true);
 
     try {
       const res = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userText,
+        }),
       });
+
       const data = await res.json();
+
+      const answer = data.answer || "Sorry, something went wrong.";
 
       setMessages((prev) => [
         ...prev,
-        { sender: "bot", text: data.answer || "Sorry, something went wrong." },
+        {
+          sender: "bot",
+          text: answer,
+        },
       ]);
+
+      if (AUTO_SPEAK) {
+        playNaturalVoice(answer);
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { sender: "bot", text: "Unable to connect to the server. Please try again later." },
+        {
+          sender: "bot",
+          text: "Unable to connect to the server. Please try again later.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -41,33 +85,42 @@ function Chatbot() {
 
   return (
     <div
-      style={{
-        width: 340,
-        height: 480,
-        border: "1px solid #ddd",
-        borderRadius: 16,
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-        fontFamily: "sans-serif",
-        overflow: "hidden",
-      }}
+      className="
+        w-[340px]
+        h-[480px]
+        border
+        border-[#ddd]
+        rounded-[16px]
+        flex
+        flex-col
+        shadow-[0_4px_20px_rgba(0,0,0,0.1)]
+        font-sans
+        overflow-hidden
+      "
     >
       <div
-        style={{
-          backgroundColor: "#ff4e7d",
-          color: "#fff",
-          padding: "12px 16px",
-          fontWeight: "bold",
-        }}
+        className="
+          bg-[#ff4e7d]
+          text-white
+          px-4
+          py-3
+          font-bold
+        "
       >
         Kikoo Support
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+      <div
+        className="
+          flex-1
+          overflow-y-auto
+          p-3
+        "
+      >
         {messages.map((m, i) => (
           <ChatMessage key={i} sender={m.sender} text={m.text} />
         ))}
+
         {loading && <ChatMessage sender="bot" text="Typing..." />}
       </div>
 
