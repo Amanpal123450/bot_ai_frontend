@@ -1,7 +1,7 @@
 import { Loader2, Volume2 } from "lucide-react";
 import React, { useState } from "react";
 
-const API_BASE = "https://bot-ai-oygp.onrender.com";
+const API_BASE = "https://bot-ai-1-372t.onrender.com";
 
 async function playNaturalVoice(text, setSpeaking) {
   try {

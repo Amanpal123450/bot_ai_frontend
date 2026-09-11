@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 
-const API_URL = "https://bot-ai-oygp.onrender.com/api/chat";
-const SPEAK_URL = "https://bot-ai-oygp.onrender.com/api/speak";
+const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
+const SPEAK_URL = "https://bot-ai-1-372t.onrender.com/api/speak";
 
 async function playNaturalVoice(text) {
   try {
