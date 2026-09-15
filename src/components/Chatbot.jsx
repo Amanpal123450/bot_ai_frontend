@@ -3,7 +3,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { playNaturalVoice } from "../utils/voice";
 
-const API_URL = "http://localhost:3001/api/chat";
+const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
 
 
 

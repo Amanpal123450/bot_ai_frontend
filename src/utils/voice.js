@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://bot-ai-1-372t.onrender.com";
 
 export async function playNaturalVoice(text, setSpeaking = null) {
   try {
