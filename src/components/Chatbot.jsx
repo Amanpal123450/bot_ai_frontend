@@ -1,39 +1,11 @@
 import React, { useState } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+import { playNaturalVoice } from "../utils/voice";
 
-const API_URL = "https://bot-ai-1-372t.onrender.com/api/chat";
-const SPEAK_URL = "https://bot-ai-1-372t.onrender.com/api/speak";
+const API_URL = "http://localhost:3001/api/chat";
 
-async function playNaturalVoice(text) {
-  try {
-    const res = await fetch(SPEAK_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
 
-    if (!res.ok) {
-      throw new Error("Voice generation failed");
-    }
-
-    const data = await res.json();
-
-    if (!data.audio) {
-      throw new Error("No audio received");
-    }
-
-    const audio = new Audio(
-      `data:audio/wav;base64,${data.audio}`
-    );
-
-    await audio.play();
-  } catch (err) {
-    console.error("Auto-speak failed:", err);
-  }
-}
 
 function Chatbot() {
   const [messages, setMessages] = useState([
@@ -73,8 +45,7 @@ function Chatbot() {
 
       const data = await res.json();
 
-      const answer =
-        data.answer || "Sorry, something went wrong.";
+      const answer = data.answer || "Sorry, something went wrong.";
 
       // Show AI text response
       setMessages((prev) => [
@@ -87,9 +58,8 @@ function Chatbot() {
 
       // 🔊 Only speak if question came from microphone
       if (voiceMode) {
-        await playNaturalVoice(answer);
+        playNaturalVoice(answer);
       }
-
     } catch (err) {
       console.error("Chat Error:", err);
 
@@ -140,25 +110,13 @@ function Chatbot() {
         "
       >
         {messages.map((m, i) => (
-          <ChatMessage
-            key={i}
-            sender={m.sender}
-            text={m.text}
-          />
+          <ChatMessage key={i} sender={m.sender} text={m.text} />
         ))}
 
-        {loading && (
-          <ChatMessage
-            sender="bot"
-            text="Typing..."
-          />
-        )}
+        {loading && <ChatMessage sender="bot" text="Typing..." />}
       </div>
 
-      <ChatInput
-        onSend={handleSend}
-        disabled={loading}
-      />
+      <ChatInput onSend={handleSend} disabled={loading} />
     </div>
   );
 }

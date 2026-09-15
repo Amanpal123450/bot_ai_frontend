@@ -1,33 +1,34 @@
 import { Loader2, Volume2 } from "lucide-react";
 import React, { useState } from "react";
+import { playNaturalVoice } from "../utils/voice";
 
-const API_BASE = "https://bot-ai-1-372t.onrender.com";
+const API_BASE = "http://localhost:3001";
 
-async function playNaturalVoice(text, setSpeaking) {
-  try {
-    setSpeaking(true);
+// async function playNaturalVoice(text, setSpeaking) {
+//   try {
+//     setSpeaking(true);
 
-    const res = await fetch(`${API_BASE}/api/speak`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
+//     const res = await fetch(`${API_BASE}/api/speak`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//       },
+//       body: JSON.stringify({ text }),
+//     });
 
-    const data = await res.json();
+//     const data = await res.json();
 
-    const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+//     const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
 
-    audio.onended = () => setSpeaking(false);
+//     audio.onended = () => setSpeaking(false);
 
-    audio.play();
-  } catch (err) {
-    setSpeaking(false) ;
+//     audio.play();
+//   } catch (err) {
+//     setSpeaking(false) ;
 
-    alert("Voice generate nahi ho paayi. Baad mein try karein.")
-  }
-}
+//     alert("Voice generate nahi ho paayi. Baad mein try karein.")
+//   }
+// }
 
 function ChatMessage({ sender, text }) {
   const isUser = sender === "user";
