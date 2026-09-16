@@ -2,33 +2,44 @@ import { Loader2, Volume2 } from "lucide-react";
 import React, { useState } from "react";
 import { playNaturalVoice } from "../utils/voice";
 
-const API_BASE = "https://bot-ai-1-372t.onrender.com";
+function renderTextWithLinks(text) {
+  if (!text) return null;
 
-// async function playNaturalVoice(text, setSpeaking) {
-//   try {
-//     setSpeaking(true);
+  const urlRegex =
+    /((?:https?:\/\/)?(?:www\.)?(?:instagram\.com\/[^\s]+|youtube\.com\/[^\s]+|youtu\.be\/[^\s]+|kikoo\.in\/?[^\s]*))/gi;
 
-//     const res = await fetch(`${API_BASE}/api/speak`, {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({ text }),
-//     });
+  return text.split(urlRegex).map((part, index) => {
+    if (part.match(urlRegex)) {
+      const cleanUrl = part.replace(/[.,!?;:]+$/, "");
+      const punctuation = part.slice(cleanUrl.length);
 
-//     const data = await res.json();
+      const href = cleanUrl.startsWith("http")
+        ? cleanUrl
+        : `https://${cleanUrl}`;
 
-//     const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+      return (
+        <React.Fragment key={index}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {cleanUrl}
+          </a>
+          {punctuation}
+        </React.Fragment>
+      );
+    }
 
-//     audio.onended = () => setSpeaking(false);
-
-//     audio.play();
-//   } catch (err) {
-//     setSpeaking(false) ;
-
-//     alert("Voice generate nahi ho paayi. Baad mein try karein.")
-//   }
-// }
+    return (
+      <React.Fragment key={index}>
+        {part}
+      </React.Fragment>
+    );
+  });
+}
 
 function ChatMessage({ sender, text }) {
   const isUser = sender === "user";
@@ -43,7 +54,6 @@ function ChatMessage({ sender, text }) {
         ${isUser ? "justify-end" : "justify-start"}
       `}
     >
-      {/* Message Bubble */}
       <div
         className={`
           max-w-[75%]
@@ -52,13 +62,15 @@ function ChatMessage({ sender, text }) {
           rounded-[14px]
           text-[14px]
           leading-[1.4]
-          ${isUser ? "bg-[#ff4e7d] text-white" : "bg-[#f1f1f4] text-[#222]"}
+          ${isUser
+            ? "bg-[#ff4e7d] text-white"
+            : "bg-[#f1f1f4] text-[#222]"
+          }
         `}
       >
-        {text}
+        {renderTextWithLinks(text)}
       </div>
 
-      {/* Speaker Button - Bot only */}
       {!isUser && (
         <button
           onClick={() => playNaturalVoice(text, setSpeaking)}
