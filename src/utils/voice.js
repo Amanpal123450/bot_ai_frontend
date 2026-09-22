@@ -72,18 +72,17 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
 let currentAudio = null;
-let playToken = 0; // 🔑 har call ka apna unique number
+let playToken = 0;
 
 export async function playNaturalVoice(text, setSpeaking = null) {
-  const myToken = ++playToken; // 🔑 is call ki apni ID
+  const myToken = ++playToken;
 
-  // 🛑 Jo bhi audio abhi chal raha hai use POORI TARAH khatam karo
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.onended = null;
     currentAudio.onerror = null;
     currentAudio.src = "";
-    currentAudio.load(); // 🔑 buffer bhi clear ho jaye
+    currentAudio.load(); // 
     currentAudio = null;
   }
 
@@ -102,7 +101,6 @@ export async function playNaturalVoice(text, setSpeaking = null) {
 
     clearTimeout(timeoutId);
 
-    // 🔑 Agar is fetch ke chalte-chalte koi naya call aa gaya, ye result discard karo
     if (myToken !== playToken) {
       if (setSpeaking) setSpeaking(false);
       return;
@@ -161,7 +159,7 @@ export async function playNaturalVoice(text, setSpeaking = null) {
 }
 
 export function stopVoice() {
-  playToken++; // 🔑 pending calls automatically stale ho jayenge
+  playToken++; 
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.onended = null;

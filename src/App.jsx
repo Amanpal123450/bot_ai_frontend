@@ -1,7 +1,3 @@
-// frontend/App.jsx
-//
-// Example page showing the chatbot in the corner of the screen,
-// the way it would sit on the real Kikoo website.
 
 import React from "react";
 import Chatbot from "./components/Chatbot";
