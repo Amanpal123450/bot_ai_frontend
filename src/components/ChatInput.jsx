@@ -4,6 +4,71 @@ import { stopVoice } from "../utils/voice";
 
 const MAX_RETRY_ATTEMPTS = 3;
 const RESTART_DELAY = 400; // 🔑 mic restart se pehle chhota gap — InvalidStateError avoid karta hai
+const suggestions = [
+  {
+    label: "🔢 Math Game",
+    message: "Start a math game",
+  },
+
+  {
+    label: "🎮 Quiz Game",
+    message: "Start a quiz game",
+  },
+  {
+    label: "🧩 Riddles",
+    message: "Tell me a riddle",
+  },
+  {
+    label: "🐾 Guess the Animal",
+    message: "Start a Guess the Animal game",
+  },
+
+  {
+    label: "🐶 Animal Sounds",
+    message: "Start an animal sounds game",
+  },
+  
+  {
+    label: "🌍 Geography Challenge",
+    message: "Start a geography challenge",
+  },
+  {
+    label: "🧩 Counting Game",
+    message: "Start a counting game",
+  },
+  {
+    label: "🔤 Spelling Challenge",
+    message: "Start a spelling challenge",
+  },
+  {
+    label: "🎵 Play a Poem",
+    message: "Play a poem",
+  },
+  {
+    label: "😂 Tell Me a Joke",
+    message: "Tell me a joke",
+  },
+  {
+    label: "🎮 Learning Games",
+    message: "Start a learning game",
+  },
+  {
+    label: "🔗 Word Chain",
+    message: "Start a word chain game",
+  },
+  {
+    label: "🎨 Colors & Shapes",
+    message: "Start a colors and shapes game",
+  },
+  {
+    label: "🔤 Alphabet",
+    message: "Start an alphabet game",
+  },
+  {
+    label: "📚 Vocabulary Builder",
+    message: "Start a vocabulary builder game",
+  },
+];
 
 function ChatInput({ onSend, disabled }) {
   const [text, setText] = useState("");
@@ -131,7 +196,6 @@ function ChatInput({ onSend, disabled }) {
       setVoiceState("thinking");
 
       try {
-  
         await onSend(transcript, true, (status) => {
           if (voiceModeRef.current) setVoiceState(status);
         });
@@ -211,6 +275,46 @@ function ChatInput({ onSend, disabled }) {
 
   return (
     <>
+      {/* Suggestions */}
+      {!voiceModeOn && (
+        <div className="px-3 pb-2">
+          <div
+            className="flex gap-2 overflow-x-auto scrollbar-hide"
+            style={{
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+            }}
+          >
+            {suggestions.map((item) => (
+              <button
+                key={item.message}
+                type="button"
+                disabled={disabled}
+                onClick={() => onSend?.(item.message)}
+                className="
+                shrink-0
+                rounded-full
+                border
+                border-[#ff4e7d]
+                bg-white
+                px-2
+                py-1
+                text-[9.5px]
+                font-medium
+                text-[#ff4e7d]
+                hover:bg-[#fff0f4]
+                transition
+                cursor-pointer
+                disabled:opacity-50
+                disabled:cursor-not-allowed
+              "
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {!voiceModeOn && (
         <div className="flex items-center border-t border-[#eee] p-[10px]">
           <input
@@ -218,7 +322,9 @@ function ChatInput({ onSend, disabled }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={quickListening ? "Listening..." : "Type your message..."}
+            placeholder={
+              quickListening ? "Listening..." : "Type your message..."
+            }
             disabled={disabled}
             className={`min-w-0 flex-1 rounded-[20px] border px-3 py-[10px] text-[14px] outline-none ${
               quickListening ? "border-[#4285F4]" : "border-[#ddd]"
@@ -230,7 +336,9 @@ function ChatInput({ onSend, disabled }) {
             disabled={disabled}
             title="Voice to text"
             className={`ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 cursor-pointer transition ${
-              quickListening ? "bg-[#4285F4] text-white" : "bg-[#eee] text-[#555]"
+              quickListening
+                ? "bg-[#4285F4] text-white"
+                : "bg-[#eee] text-[#555]"
             }`}
           >
             {quickListening ? <MicOff size={18} /> : <Mic size={18} />}

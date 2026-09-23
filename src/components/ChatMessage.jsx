@@ -9,11 +9,8 @@ function ChatMessage({ sender, text, onSend }) {
   const [speaking, setSpeaking] = useState(false);
 
   const formattedText = String(text || "")
-  // literal "\n" ko actual newline mein convert karo
   .replace(/\\n/g, "\n")
-  // Windows newline
   .replace(/\r\n/g, "\n")
-  // A), B), C) ko new line
   .replace(/\s+(?=[ABC]\)\s)/gi, "\n");
 
   const parts = formattedText.split("\n");
@@ -59,10 +56,6 @@ function ChatMessage({ sender, text, onSend }) {
                   />
                 );
               }
-
-              // =====================================
-              // A / B / C QUIZ OPTION
-              // =====================================
 
               const optionMatch = trimmedLine.match(
                 /^([ABC])[\).]\s*(.+)$/i
