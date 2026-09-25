@@ -5,11 +5,10 @@ import { stopVoice } from "../utils/voice";
 const MAX_RETRY_ATTEMPTS = 3;
 const RESTART_DELAY = 400; // 🔑 mic restart se pehle chhota gap — InvalidStateError avoid karta hai
 const suggestions = [
-
   {
-  label: "🎨 Drawing",
-  message: "Draw something for me",
-},
+    label: "🎨 Drawing",
+    message: "Draw something for me",
+  },
   {
     label: "🔢 Math Game",
     message: "Start a math game",
@@ -32,7 +31,7 @@ const suggestions = [
     label: "🐶 Animal Sounds",
     message: "Start an animal sounds game",
   },
-  
+
   {
     label: "🌍 Geography Challenge",
     message: "Start a geography challenge",
@@ -278,6 +277,15 @@ function ChatInput({ onSend, disabled }) {
     setText("");
   };
 
+  const handleSuggestionWheel = (e) => {
+    const container = e.currentTarget;
+
+    if (e.deltaY !== 0) {
+      container.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  };
+
   return (
     <>
       {/* Suggestions */}
@@ -285,6 +293,7 @@ function ChatInput({ onSend, disabled }) {
         <div className="px-3 pb-2">
           <div
             className="flex gap-2 overflow-x-auto scrollbar-hide"
+            onWheel={handleSuggestionWheel}
             style={{
               scrollbarWidth: "none",
               msOverflowStyle: "none",
