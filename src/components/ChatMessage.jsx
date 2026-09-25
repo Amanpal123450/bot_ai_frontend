@@ -4,9 +4,10 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { playNaturalVoice } from "../utils/voice";
 
-function ChatMessage({ sender, text, onSend }) {
+function ChatMessage({ sender, text, onSend,image }) {
   const isUser = sender === "user";
   const [speaking, setSpeaking] = useState(false);
+  const [imageFullScreen, setImageFullScreen] = useState(false);
 
   const formattedText = String(text || "")
   .replace(/\\n/g, "\n")
@@ -43,6 +44,8 @@ function ChatMessage({ sender, text, onSend }) {
             {text}
           </span>
         ) : (
+
+          
           <div className="flex flex-col">
             {parts.map((line, index) => {
               const trimmedLine = line.trim();
@@ -102,7 +105,7 @@ function ChatMessage({ sender, text, onSend }) {
                         min-w-[22px]
                       "
                     >
-                      {option})
+                      {option}
                     </span>
 
                     <span>
@@ -162,9 +165,63 @@ function ChatMessage({ sender, text, onSend }) {
                 </ReactMarkdown>
               );
             })}
+
+             {image && (
+  <img
+    src={image}
+    alt="Creative activity"
+    onClick={() => setImageFullScreen(true)}
+    className="mt-3 w-full max-w-[280px] rounded-xl border border-[#ddd] cursor-pointer hover:opacity-90 transition"
+  />
+)}
           </div>
         )}
       </div>
+
+      {imageFullScreen && image && (
+  <div
+    className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+    onClick={() => setImageFullScreen(false)}
+  >
+    {/* Close Button */}
+    <button
+      type="button"
+      onClick={() => setImageFullScreen(false)}
+      className="
+        absolute
+        top-4
+        right-4
+        w-10
+        h-10
+        rounded-full
+        bg-white
+        text-black
+        text-2xl
+        flex
+        items-center
+        justify-center
+        shadow-lg
+        cursor-pointer
+        z-[10000]
+      "
+    >
+      ×
+    </button>
+
+    {/* Full Screen Image */}
+    <img
+      src={image}
+      alt="Creative activity full screen"
+      onClick={(e) => e.stopPropagation()}
+      className="
+        max-w-full
+        max-h-[90vh]
+        object-contain
+        rounded-xl
+      "
+    />
+  </div>
+)}
 
       {/* Voice button */}
       {!isUser && (

@@ -5,6 +5,11 @@ import { stopVoice } from "../utils/voice";
 const MAX_RETRY_ATTEMPTS = 3;
 const RESTART_DELAY = 400; // 🔑 mic restart se pehle chhota gap — InvalidStateError avoid karta hai
 const suggestions = [
+
+  {
+  label: "🎨 Drawing",
+  message: "Draw something for me",
+},
   {
     label: "🔢 Math Game",
     message: "Start a math game",

@@ -9,7 +9,6 @@ let idCounter = 0;
 const genId = () => ++idCounter;
 
 function Chatbot() {
-  
   const [messages, setMessages] = useState([
     {
       id: genId(),
@@ -17,7 +16,7 @@ function Chatbot() {
       text: "Hi! You can ask me anything about the Kikoo contest.",
     },
   ]);
- const [gameState, setGameState] = useState({}); 
+  const [gameState, setGameState] = useState({});
   const [loading, setLoading] = useState(false);
   const abortRef = useRef(null);
 
@@ -39,11 +38,15 @@ function Chatbot() {
       const res = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-  message: userText,
-  history: messages,
-   gameState,
-}),
+        body: JSON.stringify({
+          message: userText,
+          history: messages.map((m) => ({
+            id: m.id,
+            sender: m.sender,
+            text: m.text,
+          })),
+          gameState,
+        }),
         signal: controller.signal,
       });
 
@@ -55,9 +58,19 @@ function Chatbot() {
       const answer = data.answer || "Sorry, something went wrong.";
       setGameState(data.gameState || {});
 
+      // setMessages((prev) => [
+      //   ...prev,
+      //   { id: genId(), sender: "bot", text: answer },
+      // ]);
+
       setMessages((prev) => [
         ...prev,
-        { id: genId(), sender: "bot", text: answer },
+        {
+          id: genId(),
+          sender: "bot",
+          text: answer,
+          image: data.image || null,
+        },
       ]);
 
       setLoading(false);
@@ -107,8 +120,18 @@ function Chatbot() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        {messages.map((m) => (
+        {/* {messages.map((m) => (
           <ChatMessage key={m.id} sender={m.sender} text={m.text} onSend={handleSend}/>
+        ))} */}
+
+        {messages.map((m) => (
+          <ChatMessage
+            key={m.id}
+            sender={m.sender}
+            text={m.text}
+            image={m.image}
+            onSend={handleSend}
+          />
         ))}
         {loading && <ChatMessage sender="bot" text="Typing..." />}
       </div>
