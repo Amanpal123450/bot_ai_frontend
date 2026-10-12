@@ -4,10 +4,22 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { playNaturalVoice } from "../utils/voice";
 
-function ChatMessage({ sender, text, onSend,image }) {
+function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
   const isUser = sender === "user";
   const [speaking, setSpeaking] = useState(false);
   const [imageFullScreen, setImageFullScreen] = useState(false);
+
+ const handleSpeak = async () => {
+  setSpeaking(true);
+  try {
+    await playNaturalVoice(text, setSpeaking, {
+      onStart: () => onSpeakingChange?.(true),
+      onEnd: () => onSpeakingChange?.(false),
+    });
+  } catch {
+    setSpeaking(false);
+  }
+};
 
   const formattedText = String(text || "")
   .replace(/\\n/g, "\n")
@@ -226,25 +238,8 @@ function ChatMessage({ sender, text, onSend,image }) {
       {/* Voice button */}
       {!isUser && (
         <button
-          onClick={() =>
-            playNaturalVoice(
-              text,
-              setSpeaking
-            )
-          }
-          disabled={speaking}
-          title="Sunein"
-          className={`
-            ml-[6px]
-            mt-[4px]
-            border-0
-            bg-transparent
-            ${
-              speaking
-                ? "cursor-default opacity-50"
-                : "cursor-pointer opacity-100"
-            }
-          `}
+        onClick={handleSpeak}
+        disabled={speaking}
         >
           {speaking ? (
             <Loader2

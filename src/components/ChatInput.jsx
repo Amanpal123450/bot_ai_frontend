@@ -74,7 +74,7 @@ const suggestions = [
   },
 ];
 
-function ChatInput({ onSend, disabled }) {
+function ChatInput({ onSend, disabled , onTypingChange }) {
   const [text, setText] = useState("");
   const [quickListening, setQuickListening] = useState(false);
   const [voiceModeOn, setVoiceModeOn] = useState(false);
@@ -84,12 +84,26 @@ function ChatInput({ onSend, disabled }) {
   const voiceModeRef = useRef(false);
   const SpeechRecognitionRef = useRef(null);
   const retryCountRef = useRef(0);
+  const typingTimerRef = useRef(null);
+
+const notifyTyping = () => {
+  onTypingChange?.(true);
+  clearTimeout(typingTimerRef.current);
+  // 1.5 sec tak kuch type nahi kiya to typing band
+  typingTimerRef.current = setTimeout(() => onTypingChange?.(false), 1500);
+};
+
+const stopTyping = () => {
+  clearTimeout(typingTimerRef.current);
+  onTypingChange?.(false);
+};
 
   useEffect(() => {
     return () => {
       voiceModeRef.current = false;
       recognitionRef.current?.stop();
       recognitionRef.current = null;
+      clearTimeout(typingTimerRef.current);
       stopVoice();
     };
   }, []);
@@ -97,6 +111,7 @@ function ChatInput({ onSend, disabled }) {
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+      stopTyping();
     onSend(trimmed, false);
     setText("");
   };
@@ -290,15 +305,18 @@ function ChatInput({ onSend, disabled }) {
     <>
       {/* Suggestions */}
       {!voiceModeOn && (
+
         <div className="px-3 pb-2">
           <div
-            className="flex gap-2 overflow-x-auto scrollbar-hide"
-            onWheel={handleSuggestionWheel}
-            style={{
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-            }}
-          >
+  className="flex gap-2 overflow-x-auto scrollbar-hide touch-pan-x"
+  onWheel={handleSuggestionWheel}
+  style={{
+    scrollbarWidth: "none",
+    msOverflowStyle: "none",
+    WebkitOverflowScrolling: "touch",
+    touchAction: "pan-x",
+  }}
+>
             {suggestions.map((item) => (
               <button
                 key={item.message}
@@ -334,7 +352,12 @@ function ChatInput({ onSend, disabled }) {
           <input
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+           onChange={(e) => {
+  setText(e.target.value);
+  if (e.target.value) notifyTyping();
+  else stopTyping();
+}}
+onBlur={stopTyping}
             onKeyDown={handleKeyDown}
             placeholder={
               quickListening ? "Listening..." : "Type your message..."

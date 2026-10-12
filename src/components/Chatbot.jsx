@@ -8,7 +8,7 @@ const API_URL = `${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api
 let idCounter = 0;
 const genId = () => ++idCounter;
 
-function Chatbot() {
+function Chatbot({ onSpeakingChange, onTypingChange }) {
   const [messages, setMessages] = useState([
     {
       id: genId(),
@@ -19,6 +19,18 @@ function Chatbot() {
   const [gameState, setGameState] = useState({});
   const [loading, setLoading] = useState(false);
   const abortRef = useRef(null);
+
+  const speakAnswer = async (text, onStatusChange) => {
+  onStatusChange?.("speaking");
+  try {
+    await playNaturalVoice(text, null, {
+      onStart: () => onSpeakingChange?.(true),   // audio shuru = talk shuru
+      onEnd: () => onSpeakingChange?.(false),    // audio khatam = talk band
+    });
+  } catch {
+    // ignore
+  }
+};
 
   // 🔑 Teesra param onStatusChange — voice mode se hi aata hai
   const handleSend = async (userText, voiceMode = false, onStatusChange) => {
@@ -73,18 +85,22 @@ function Chatbot() {
         },
       ]);
 
-      setLoading(false);
 
-      if (voiceMode) {
-        onStatusChange?.("speaking");
-        try {
-          // 🔑 IMPORTANT: ye await hone tak function return nahi hoga,
-          // isliye ChatInput.jsx ka mic tabhi dobara start hoga jab awaaz poori baj chuki ho.
-          await playNaturalVoice(answer);
-        } catch {
-          // voice fail ho jaye to bhi conversation aage badhe
-        }
-      }
+//    if (voiceMode) {
+//   onStatusChange?.("speaking");
+//   onSpeakingChange?.(true);
+//   try {
+//     await playNaturalVoice(answer);
+//   } catch {
+//     // ignore
+//   } finally {
+//     onSpeakingChange?.(false);
+//   }
+// }
+
+setLoading(false);
+
+if (voiceMode) await speakAnswer(answer, onStatusChange);
     } catch (err) {
       const message =
         err.name === "AbortError"
@@ -100,14 +116,7 @@ function Chatbot() {
 
       setLoading(false);
 
-      if (voiceMode) {
-        onStatusChange?.("speaking");
-        try {
-          await playNaturalVoice(message);
-        } catch {
-          // ignore
-        }
-      }
+if (voiceMode) await speakAnswer(message, onStatusChange);
     } finally {
       abortRef.current = null;
     }
@@ -131,12 +140,13 @@ function Chatbot() {
             text={m.text}
             image={m.image}
             onSend={handleSend}
+            onSpeakingChange={onSpeakingChange}
           />
         ))}
         {loading && <ChatMessage sender="bot" text="Typing..." />}
       </div>
 
-      <ChatInput onSend={handleSend} disabled={loading} />
+      <ChatInput onSend={handleSend} disabled={loading} onTypingChange={onTypingChange} />
     </div>
   );
 }
