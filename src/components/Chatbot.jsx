@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
-import { playNaturalVoice } from "../utils/voice";
+import { playNaturalVoice, stopVoice } from "../utils/voice";
 
 const API_URL = `${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/chat`;
 
@@ -20,20 +20,23 @@ function Chatbot({ onSpeakingChange, onTypingChange }) {
   const [loading, setLoading] = useState(false);
   const abortRef = useRef(null);
 
+  // Bot ka jawab bolo. Audio shuru hote hi talk animation, khatam hote hi band
   const speakAnswer = async (text, onStatusChange) => {
-  onStatusChange?.("speaking");
-  try {
-    await playNaturalVoice(text, null, {
-      onStart: () => onSpeakingChange?.(true),   // audio shuru = talk shuru
-      onEnd: () => onSpeakingChange?.(false),    // audio khatam = talk band
-    });
-  } catch {
-    // ignore
-  }
-};
+    onStatusChange?.("speaking");
+    try {
+      await playNaturalVoice(text, null, {
+        onStart: () => onSpeakingChange?.(true),
+        onEnd: () => onSpeakingChange?.(false),
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   // 🔑 Teesra param onStatusChange — voice mode se hi aata hai
   const handleSend = async (userText, voiceMode = false, onStatusChange) => {
+    stopVoice(); // nayi baat shuru, purani awaaz band
+
     setMessages((prev) => [
       ...prev,
       { id: genId(), sender: "user", text: userText },
@@ -70,11 +73,6 @@ function Chatbot({ onSpeakingChange, onTypingChange }) {
       const answer = data.answer || "Sorry, something went wrong.";
       setGameState(data.gameState || {});
 
-      // setMessages((prev) => [
-      //   ...prev,
-      //   { id: genId(), sender: "bot", text: answer },
-      // ]);
-
       setMessages((prev) => [
         ...prev,
         {
@@ -85,22 +83,12 @@ function Chatbot({ onSpeakingChange, onTypingChange }) {
         },
       ]);
 
+      setLoading(false);
 
-//    if (voiceMode) {
-//   onStatusChange?.("speaking");
-//   onSpeakingChange?.(true);
-//   try {
-//     await playNaturalVoice(answer);
-//   } catch {
-//     // ignore
-//   } finally {
-//     onSpeakingChange?.(false);
-//   }
-// }
-
-setLoading(false);
-
-if (voiceMode) await speakAnswer(answer, onStatusChange);
+      // Text chat ho ya voice chat, jawab dono mein bolta hai.
+      // Voice mode mein await zaroori hai (mic tabhi dobara shuru hota hai jab awaaz poori ho)
+      const talking = speakAnswer(answer, onStatusChange);
+      if (voiceMode) await talking;
     } catch (err) {
       const message =
         err.name === "AbortError"
@@ -116,7 +104,8 @@ if (voiceMode) await speakAnswer(answer, onStatusChange);
 
       setLoading(false);
 
-if (voiceMode) await speakAnswer(message, onStatusChange);
+      // error ka message sirf voice mode mein bolo
+      if (voiceMode) await speakAnswer(message, onStatusChange);
     } finally {
       abortRef.current = null;
     }
@@ -129,10 +118,6 @@ if (voiceMode) await speakAnswer(message, onStatusChange);
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        {/* {messages.map((m) => (
-          <ChatMessage key={m.id} sender={m.sender} text={m.text} onSend={handleSend}/>
-        ))} */}
-
         {messages.map((m) => (
           <ChatMessage
             key={m.id}

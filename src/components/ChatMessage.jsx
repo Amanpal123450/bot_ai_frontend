@@ -4,27 +4,27 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { playNaturalVoice } from "../utils/voice";
 
-function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
+function ChatMessage({ sender, text, onSend, image, onSpeakingChange }) {
   const isUser = sender === "user";
   const [speaking, setSpeaking] = useState(false);
   const [imageFullScreen, setImageFullScreen] = useState(false);
 
- const handleSpeak = async () => {
-  setSpeaking(true);
-  try {
-    await playNaturalVoice(text, setSpeaking, {
-      onStart: () => onSpeakingChange?.(true),
-      onEnd: () => onSpeakingChange?.(false),
-    });
-  } catch {
-    setSpeaking(false);
-  }
-};
+  const handleSpeak = async () => {
+    setSpeaking(true);
+    try {
+      await playNaturalVoice(text, setSpeaking, {
+        onStart: () => onSpeakingChange?.(true),
+        onEnd: () => onSpeakingChange?.(false),
+      });
+    } catch {
+      setSpeaking(false);
+    }
+  };
 
   const formattedText = String(text || "")
-  .replace(/\\n/g, "\n")
-  .replace(/\r\n/g, "\n")
-  .replace(/\s+(?=[ABC]\)\s)/gi, "\n");
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\s+(?=[ABC]\)\s)/gi, "\n");
 
   const parts = formattedText.split("\n");
 
@@ -44,52 +44,33 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
           text-[14px]
           leading-[1.5]
           break-words
-          ${
-            isUser
-              ? "bg-[#ff4e7d] text-white"
-              : "bg-[#f1f1f4] text-[#222]"
-          }
+          ${isUser ? "bg-[#ff4e7d] text-white" : "bg-[#f1f1f4] text-[#222]"}
         `}
       >
         {isUser ? (
-          <span className="whitespace-pre-wrap">
-            {text}
-          </span>
+          <span className="whitespace-pre-wrap">{text}</span>
         ) : (
-
-          
           <div className="flex flex-col">
             {parts.map((line, index) => {
               const trimmedLine = line.trim();
 
               // Empty line
               if (!trimmedLine) {
-                return (
-                  <div
-                    key={index}
-                    className="h-[6px]"
-                  />
-                );
+                return <div key={index} className="h-[6px]" />;
               }
 
-              const optionMatch = trimmedLine.match(
-                /^([ABC])[\).]\s*(.+)$/i
-              );
+              const optionMatch = trimmedLine.match(/^([ABC])[\).]\s*(.+)$/i);
 
               if (optionMatch) {
-                const option =
-                  optionMatch[1].toUpperCase();
+                const option = optionMatch[1].toUpperCase();
 
-                const optionText =
-                  optionMatch[2];
+                const optionText = optionMatch[2];
 
                 return (
                   <button
                     key={index}
                     type="button"
-                    onClick={() =>
-  onSend?.(`${option}) ${optionText}`)
-}
+                    onClick={() => onSend?.(`${option}) ${optionText}`)}
                     className="
                       w-full
                       text-left
@@ -120,9 +101,7 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
                       {option}
                     </span>
 
-                    <span>
-                      {optionText}
-                    </span>
+                    <span>{optionText}</span>
                   </button>
                 );
               }
@@ -136,11 +115,7 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
                   key={index}
                   remarkPlugins={[remarkBreaks]}
                   components={{
-                    p: ({ children }) => (
-                      <p className="m-0 mb-1">
-                        {children}
-                      </p>
-                    ),
+                    p: ({ children }) => <p className="m-0 mb-1">{children}</p>,
 
                     strong: ({ children }) => (
                       <strong className="font-bold text-[#111]">
@@ -149,9 +124,7 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
                     ),
 
                     em: ({ children }) => (
-                      <em className="italic">
-                        {children}
-                      </em>
+                      <em className="italic">{children}</em>
                     ),
 
                     a: ({ href, children }) => (
@@ -164,9 +137,7 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
                           underline
                           break-all
                         "
-                        onClick={(e) =>
-                          e.stopPropagation()
-                        }
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {children}
                       </a>
@@ -178,28 +149,28 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
               );
             })}
 
-             {image && (
-  <img
-    src={image}
-    alt="Creative activity"
-    onClick={() => setImageFullScreen(true)}
-    className="mt-3 w-full max-w-[280px] rounded-xl border border-[#ddd] cursor-pointer hover:opacity-90 transition"
-  />
-)}
+            {image && (
+              <img
+                src={image}
+                alt="Creative activity"
+                onClick={() => setImageFullScreen(true)}
+                className="mt-3 w-full max-w-[280px] rounded-xl border border-[#ddd] cursor-pointer hover:opacity-90 transition"
+              />
+            )}
           </div>
         )}
       </div>
 
       {imageFullScreen && image && (
-  <div
-    className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
-    onClick={() => setImageFullScreen(false)}
-  >
-    {/* Close Button */}
-    <button
-      type="button"
-      onClick={() => setImageFullScreen(false)}
-      className="
+        <div
+          className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setImageFullScreen(false)}
+        >
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={() => setImageFullScreen(false)}
+            className="
         absolute
         top-4
         right-4
@@ -216,36 +187,30 @@ function ChatMessage({ sender, text, onSend,image, onSpeakingChange }) {
         cursor-pointer
         z-[10000]
       "
-    >
-      ×
-    </button>
+          >
+            ×
+          </button>
 
-    {/* Full Screen Image */}
-    <img
-      src={image}
-      alt="Creative activity full screen"
-      onClick={(e) => e.stopPropagation()}
-      className="
+          {/* Full Screen Image */}
+          <img
+            src={image}
+            alt="Creative activity full screen"
+            onClick={(e) => e.stopPropagation()}
+            className="
         max-w-full
         max-h-[90vh]
         object-contain
         rounded-xl
       "
-    />
-  </div>
-)}
+          />
+        </div>
+      )}
 
       {/* Voice button */}
       {!isUser && (
-        <button
-        onClick={handleSpeak}
-        disabled={speaking}
-        >
+        <button onClick={handleSpeak} disabled={speaking}>
           {speaking ? (
-            <Loader2
-              size={17}
-              className="animate-spin"
-            />
+            <Loader2 size={17} className="animate-spin" />
           ) : (
             <Volume2 size={17} />
           )}

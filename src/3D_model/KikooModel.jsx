@@ -10,7 +10,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 
-const MODEL_URL = "/models/kikoo_v23.glb";
+const MODEL_URL = "/models/kikoo_v2.glb";
 const IDLE_DELAY_MS = 5000; // idle rehne par har 10 sec mein random hello / look
 // Idle mein random ye animations chalengi (look + ye one-shot actions)
 const ONE_SHOT_NAMES = ["hello", "normal"];
@@ -168,6 +168,31 @@ function Model({ speaking, typing }) {
     );
     return curves;
   }, [animations]);
+
+  // Paws alag armature hain jo scene root par pade hain. Unhe haath ki bone se jodo
+// (ye base pose wale effect se PEHLE aana chahiye)
+useLayoutEffect(() => {
+  scene.updateMatrixWorld(true);
+  const meta = scene.getObjectByName("metarig");
+  if (meta) {
+    const pairs = [
+      ["SmartRigArmature001", "handR"], // right paw
+      ["SmartRigArmature", "handL"],
+    ];
+    for (const [rigName, boneName] of pairs) {
+      const rig = scene.getObjectByName(rigName);
+      const bone = meta.getObjectByName(boneName);
+      if (rig && bone && rig.parent !== bone) {
+        bone.attach(rig); // world position same rehti hai, bas ab bone ke saath chalega
+        console.log(`Paw jodi: ${rigName} -> ${boneName}`);
+      }
+    }
+  }
+  // skinned meshes move karte hain, isliye culling band (nahi to paw gayab ho sakta hai)
+  scene.traverse((o) => {
+    if (o.isSkinnedMesh) o.frustumCulled = false;
+  });
+}, [scene]);
 
   // Base pose: GLB ka rest pose T-pose hai, haath neeche wala pose yahan lagta hai
   useLayoutEffect(() => {
