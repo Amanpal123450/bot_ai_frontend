@@ -10,25 +10,16 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 
-// glb ko public/models/ folder mein rakho
-   const MODEL_URL = "/models/second%20.glb";
-
-const IDLE_DELAY_MS = 6000; // idle mein har 6 sec baad "time waste" chalega
-
-// Jo actions ek baar chalke khatam hote hain (idle + click)
-const ONE_SHOT_NAMES = ["idle", "run"];
-
-// Base pose (haath neeche) is action ke constant tracks se aata hai
-// Agar haath T-pose mein dikhein to yahan koi aur clip ka naam daalo (jaise /waking/i)
-const BASE_POSE_RE = /noramal|normal/i;
-
-// Clip ka naam (key) -> GLB ke animation naam ka regex
+const MODEL_URL = "/models/8.glb";
+const IDLE_DELAY_MS = 10000;
+const ONE_SHOT_NAMES = ["idle", "jump"];
+const BASE_POSE_RE = /noramal\.001/i;
 const CLIP_PATTERNS = {
-  intro: /hayy|hello/i, // page reload par
-  idle: /time\s*waste/i, // har 6 sec
-  run: /^run$/i, // model par click par
-  talk: /tolk|talk|toking|speak/i, // bot bolte waqt
-  typing: /typ/i, // user type kare tab
+  intro: /hayy/i, // page reload par      -> hayy(2)
+  idle: /noramal\.001/i, // har 10 sec baad -> noramal.001
+  jump: /^jump$/i, // model par click par  -> jump
+  talk: /toking/i, // bot bolte waqt       -> toking
+  typing: /^typing$/i,
 };
 
 // Jin actions mein blink chahiye
@@ -95,40 +86,50 @@ function onlyMoving(clip, name) {
   return new THREE.AnimationClip(name, clip.duration, tracks);
 }
 
+// Naya: sirf constant SCALE tracks hatao (wo faltu hain).
+// Rotation/position tracks hamesha rakho, taaki bazu aur haath ki pose clip ke hisaab se rahe.
+function keepPoseTracks(clip, name) {
+  const tracks = clip.tracks.filter((t) => {
+    if (/\.scale$/i.test(t.name)) return isMoving(t);
+    return true;
+  });
+  if (!tracks.length) return null;
+  return new THREE.AnimationClip(name, clip.duration, tracks);
+}
+
+// Talk clip mein bazu/haath ke tracks hata do, taaki haath neeche hi rahein
+const ARM_BONE_RE = /^Bone_0(2[3-9]|3[0-2])\./; // Bone_023 ... Bone_032
+
+function withoutArmTracks(clip, name) {
+  const tracks = clip.tracks.filter((t) => !ARM_BONE_RE.test(t.name));
+  return new THREE.AnimationClip(name, clip.duration, tracks);
+}
+
 function Model({ speaking, typing }) {
   const group = useRef();
   const { scene, animations } = useGLTF(MODEL_URL);
 
+  useEffect(() => {
+  console.log("GLB FILE:", MODEL_URL);
+  console.log("TOTAL GLB ANIMATIONS:", animations.length);
+
+  console.table(
+    animations.map((animation, index) => ({
+      Number: index + 1,
+      Name: animation.name,
+      Duration: animation.duration.toFixed(2) + " seconds",
+    }))
+  );
+}, [animations]);
+
   const [introDone, setIntroDone] = useState(false); // hayy khatam hua?
   const idleTimerRef = useRef(null);
   const busyRef = useRef(true); // intro / talk / typing chal raha hai?
-  const oneShotRef = useRef(false); // idle ya run chal raha hai?
+  const oneShotRef = useRef(false); // idle ya jump chal raha hai?
   const actionsRef = useRef({});
   const eyesRef = useRef([]);
   const lidsRef = useRef([]);
   const blinkRef = useRef(0);
-
-  // Base pose: GLB ka rest pose T-pose hai, haath neeche wala pose yahan lagta hai
-// Clip ke pehle frame (t=0) ki pose lagate hain, chahe track hile ya na hile
-useLayoutEffect(() => {
-  const src = animations.find((a) => BASE_POSE_RE.test(a.name.trim()));
-  if (!src) {
-    console.warn("⚠️ base pose wali action nahi mili");
-    return;
-  }
-  let n = 0;
-  for (const t of src.tracks) {
-    const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(t.name);
-    const node = THREE.PropertyBinding.findNode(scene, nodeName);
-    if (!node) continue;
-    const v = t.values.slice(0, t.getValueSize());
-    if (propertyName === "quaternion") node.quaternion.fromArray(v);
-    else if (propertyName === "position") node.position.fromArray(v);
-    else if (propertyName === "scale") node.scale.fromArray(v);
-    n++;
-  }
-  console.log(`Base pose lagaya ("${src.name.trim()}"): ${n} tracks`);
-}, [scene, animations]);
 
   // Har action ka apna blink curve
   const blinkCurves = useMemo(() => {
@@ -169,6 +170,7 @@ useLayoutEffect(() => {
   }, [scene]);
 
   // Base pose: GLB ka rest pose T-pose hai, haath neeche wala pose yahan lagta hai
+  // Clip ke pehle frame (t=0) ki pose lagate hain, chahe track hile ya na hile
   useLayoutEffect(() => {
     const src = animations.find((a) => BASE_POSE_RE.test(a.name.trim()));
     if (!src) {
@@ -176,17 +178,20 @@ useLayoutEffect(() => {
       return;
     }
     let n = 0;
-    for (const t of src.tracks) {
-      if (isMoving(t)) continue;
-      const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(t.name);
-      const node = THREE.PropertyBinding.findNode(scene, nodeName);
-      if (!node) continue;
-      const v = t.values.slice(0, t.getValueSize());
-      if (propertyName === "quaternion") node.quaternion.fromArray(v);
-      else if (propertyName === "position") node.position.fromArray(v);
-      else if (propertyName === "scale") node.scale.fromArray(v);
-      n++;
-    }
+   for (const t of src.tracks) {
+  const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(t.name);
+  const node = THREE.PropertyBinding.findNode(scene, nodeName);
+  if (!node) continue;
+
+  // const v = t.values.slice(0, t.getValueSize());   // purana: pehla frame
+  const size = t.getValueSize();
+  const v = t.values.slice(t.values.length - size);   // naya: aakhri frame
+
+  if (propertyName === "quaternion") node.quaternion.fromArray(v);
+  else if (propertyName === "position") node.position.fromArray(v);
+  else if (propertyName === "scale") node.scale.fromArray(v);
+  n++;
+}
     console.log(`Base pose lagaya ("${src.name.trim()}"): ${n} tracks`);
   }, [scene, animations]);
 
@@ -258,7 +263,12 @@ useLayoutEffect(() => {
         console.warn(`⚠️ "${name}" animation GLB mein nahi mili`);
         continue;
       }
-      const c = onlyMoving(src, name);
+
+      
+      // const c = onlyMoving(src, name);
+     // const c = keepPoseTracks(src, name);
+let c = keepPoseTracks(src, name);
+if (c && name === "talk") c = withoutArmTracks(c, name); // 👈 toking mein haath neeche
       if (!c) console.warn(`⚠️ "${name}" mein koi moving track nahi hai`);
       else result.push(c);
     }
@@ -284,7 +294,7 @@ useLayoutEffect(() => {
     eyesRef.current = list;
   }, [scene]);
 
-  // Ek baar chalne wala action (idle ya run)
+  // Ek baar chalne wala action (idle ya jump)
   const playOneShot = useCallback((name) => {
     const act = actionsRef.current[name];
     if (!act) return;
@@ -295,25 +305,25 @@ useLayoutEffect(() => {
     act.fadeIn(0.3).play();
   }, []);
 
-  // Idle: 6 sec baad "time waste"
+  // Idle: 10 sec baad noramal.001
   const scheduleIdle = useCallback(() => {
     clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       if (busyRef.current || oneShotRef.current) return;
-      console.log("▶️ idle: time waste");
+      console.log("▶️ idle: noramal.001");
       playOneShot("idle");
     }, IDLE_DELAY_MS);
   }, [playOneShot]);
 
-  // Model par click -> run
+  // Model par click -> jump
   const handleClick = useCallback(
     (e) => {
       e.stopPropagation();
       if (busyRef.current) return; // intro / talk / typing ke waqt ignore
       clearTimeout(idleTimerRef.current);
       ONE_SHOT_NAMES.forEach((n) => actionsRef.current[n]?.fadeOut(0.2));
-      console.log("▶️ click: run");
-      playOneShot("run");
+      console.log("▶️ click: jump");
+      playOneShot("jump");
     },
     [playOneShot]
   );
@@ -350,7 +360,7 @@ useLayoutEffect(() => {
     }
   });
 
-  // intro / idle / run khatam hone par
+  // intro / idle / jump khatam hone par
   useEffect(() => {
     if (!mixer) return;
     const onFinished = (e) => {
@@ -361,14 +371,14 @@ useLayoutEffect(() => {
       if (ONE_SHOT_NAMES.some((n) => actions[n] && e.action === actions[n])) {
         e.action.fadeOut(0.4);
         oneShotRef.current = false;
-        if (!busyRef.current) scheduleIdle(); // phir 6 sec baad
+        if (!busyRef.current) scheduleIdle(); // phir 10 sec baad
       }
     };
     mixer.addEventListener("finished", onFinished);
     return () => mixer.removeEventListener("finished", onFinished);
   }, [mixer, actions, scheduleIdle]);
 
-  // 1) Page load / reload par "hayy" (ek baar)
+  // 1) Page load / reload par "hayy(2)" (ek baar)
   useEffect(() => {
     const intro = actions.intro;
     if (!intro) {
@@ -382,7 +392,7 @@ useLayoutEffect(() => {
     return () => intro.stop();
   }, [actions]);
 
-  // 2) Talk: audio chalte waqt
+  // 2) Talk (toking): audio chalte waqt
   useEffect(() => {
     const talk = actions.talk;
     if (!talk) return;
@@ -405,7 +415,7 @@ useLayoutEffect(() => {
     }
   }, [typing, actions]);
 
-  // 4) Idle (time waste) sirf tab jab koi aur animation na ho
+  // 4) Idle (noramal.001) sirf tab jab koi aur animation na ho
   useEffect(() => {
     const busy = speaking || typing || !introDone;
     busyRef.current = busy;
@@ -416,7 +426,7 @@ useLayoutEffect(() => {
       scheduleIdle();
     }
 
-    // speaking/typing aaye to intro/idle/run hata do, warna mix honge
+    // speaking/typing aaye to intro/idle/jump hata do, warna mix honge
     if (speaking || typing) {
       actionsRef.current.intro?.fadeOut(0.3);
       ONE_SHOT_NAMES.forEach((n) => actionsRef.current[n]?.fadeOut(0.3));
@@ -443,12 +453,13 @@ useLayoutEffect(() => {
 
 export default function KikooModel({ speaking = false, typing = false }) {
   return (
-    <div style={{ width: "500px", height: "500px" }}>
-      <Canvas camera={{ position: [0, 0, 12], fov: 40, near: 1, far: 50 }}>
+    // parent (380px x chatbot height) ko poora bhar do
+    <div style={{ position: "absolute", inset: 0 }}>
+      <Canvas camera={{ position: [0, -0.7, 4.3], fov: 40, near: 0.1, far: 50 }}>
         <ambientLight intensity={2} />
-        <directionalLight position={[5, 5, 5]} intensity={3} />
+        <directionalLight position={[15, 15, 15]} intensity={3} />
         <Model speaking={speaking} typing={typing} />
-        <OrbitControls />
+        <OrbitControls target={[0, -0.7, 0]} />
       </Canvas>
     </div>
   );

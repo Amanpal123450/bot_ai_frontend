@@ -1,5 +1,6 @@
 import { AudioLines, Mic, MicOff, Send, X } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { stopVoice } from "../utils/voice";
 
 const MAX_RETRY_ATTEMPTS = 3;
@@ -13,7 +14,6 @@ const suggestions = [
     label: "🔢 Math Game",
     message: "Start a math game",
   },
-
   {
     label: "🎮 Quiz Game",
     message: "Start a quiz game",
@@ -26,12 +26,10 @@ const suggestions = [
     label: "🐾 Guess the Animal",
     message: "Start a Guess the Animal game",
   },
-
   {
     label: "🐶 Animal Sounds",
     message: "Start an animal sounds game",
   },
-
   {
     label: "🌍 Geography Challenge",
     message: "Start a geography challenge",
@@ -74,7 +72,7 @@ const suggestions = [
   },
 ];
 
-function ChatInput({ onSend, disabled , onTypingChange }) {
+function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
   const [text, setText] = useState("");
   const [quickListening, setQuickListening] = useState(false);
   const [voiceModeOn, setVoiceModeOn] = useState(false);
@@ -86,17 +84,17 @@ function ChatInput({ onSend, disabled , onTypingChange }) {
   const retryCountRef = useRef(0);
   const typingTimerRef = useRef(null);
 
-const notifyTyping = () => {
-  onTypingChange?.(true);
-  clearTimeout(typingTimerRef.current);
-  // 1.5 sec tak kuch type nahi kiya to typing band
-  typingTimerRef.current = setTimeout(() => onTypingChange?.(false), 1500);
-};
+  const notifyTyping = () => {
+    onTypingChange?.(true);
+    clearTimeout(typingTimerRef.current);
+    // 1.5 sec tak kuch type nahi kiya to typing band
+    typingTimerRef.current = setTimeout(() => onTypingChange?.(false), 1500);
+  };
 
-const stopTyping = () => {
-  clearTimeout(typingTimerRef.current);
-  onTypingChange?.(false);
-};
+  const stopTyping = () => {
+    clearTimeout(typingTimerRef.current);
+    onTypingChange?.(false);
+  };
 
   useEffect(() => {
     return () => {
@@ -111,7 +109,7 @@ const stopTyping = () => {
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-      stopTyping();
+    stopTyping();
     onSend(trimmed, false);
     setText("");
   };
@@ -301,22 +299,22 @@ const stopTyping = () => {
     }
   };
 
-  return (
+  // 👇 Suggestions + input row. Component ke ANDAR hai, taaki state/handlers mil sakein.
+  const inputBlocks = (
     <>
       {/* Suggestions */}
       {!voiceModeOn && (
-
-        <div className="px-3 pb-2">
+        <div className="px-3 pt-2 pb-2">
           <div
-  className="flex gap-2 overflow-x-auto scrollbar-hide touch-pan-x"
-  onWheel={handleSuggestionWheel}
-  style={{
-    scrollbarWidth: "none",
-    msOverflowStyle: "none",
-    WebkitOverflowScrolling: "touch",
-    touchAction: "pan-x",
-  }}
->
+            className="flex gap-2 overflow-x-auto scrollbar-hide touch-pan-x"
+            onWheel={handleSuggestionWheel}
+            style={{
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+              WebkitOverflowScrolling: "touch",
+              touchAction: "pan-x",
+            }}
+          >
             {suggestions.map((item) => (
               <button
                 key={item.message}
@@ -324,22 +322,22 @@ const stopTyping = () => {
                 disabled={disabled}
                 onClick={() => onSend?.(item.message)}
                 className="
-                shrink-0
-                rounded-full
-                border
-                border-[#ff4e7d]
-                bg-white
-                px-2
-                py-1
-                text-[9.5px]
-                font-medium
-                text-[#ff4e7d]
-                hover:bg-[#fff0f4]
-                transition
-                cursor-pointer
-                disabled:opacity-50
-                disabled:cursor-not-allowed
-              "
+                  shrink-0
+                  rounded-full
+                  border
+                  border-[#ff4e7d]
+                  bg-white
+                  px-2
+                  py-1
+                  text-[9.5px]
+                  font-medium
+                  text-[#ff4e7d]
+                  hover:bg-[#fff0f4]
+                  transition
+                  cursor-pointer
+                  disabled:opacity-50
+                  disabled:cursor-not-allowed
+                "
               >
                 {item.label}
               </button>
@@ -347,17 +345,19 @@ const stopTyping = () => {
           </div>
         </div>
       )}
+
+      {/* Input row */}
       {!voiceModeOn && (
         <div className="flex items-center border-t border-[#eee] p-[10px]">
           <input
             type="text"
             value={text}
-           onChange={(e) => {
-  setText(e.target.value);
-  if (e.target.value) notifyTyping();
-  else stopTyping();
-}}
-onBlur={stopTyping}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (e.target.value) notifyTyping();
+              else stopTyping();
+            }}
+            onBlur={stopTyping}
             onKeyDown={handleKeyDown}
             placeholder={
               quickListening ? "Listening..." : "Type your message..."
@@ -381,14 +381,14 @@ onBlur={stopTyping}
             {quickListening ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
 
-          <button
+          {/* <button
             onClick={handleVoiceConversationClick}
             disabled={disabled}
             title="Start voice conversation"
             className="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-0 bg-blue-500 text-white cursor-pointer hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <AudioLines size={18} />
-          </button>
+          </button> */}
 
           <button
             onClick={handleSend}
@@ -401,7 +401,15 @@ onBlur={stopTyping}
           </button>
         </div>
       )}
+    </>
+  );
 
+  return (
+    <>
+      {/* portalTarget mila to model ke neeche, warna chatbot ke andar hi */}
+      {portalTarget ? createPortal(inputBlocks, portalTarget) : inputBlocks}
+
+      {/* Voice overlay chatbot ke andar hi rahega */}
       {voiceModeOn && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#171717] text-white">
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-4">

@@ -8,7 +8,8 @@ const API_URL = `${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api
 let idCounter = 0;
 const genId = () => ++idCounter;
 
-function Chatbot({ onSpeakingChange, onTypingChange }) {
+// function Chatbot({ onSpeakingChange, onTypingChange }) {
+function Chatbot({ onSpeakingChange, onTypingChange, inputTarget }) {
   const [messages, setMessages] = useState([
     {
       id: genId(),
@@ -112,13 +113,17 @@ function Chatbot({ onSpeakingChange, onTypingChange }) {
   };
 
   return (
-    <div className="w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
+   // purana:
+// <div className="w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
+<div 
+style={{ display: "none" }} 
+className="relative w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
       <div className="bg-[#ff4e7d] text-white px-4 py-3 font-bold">
         Kikoo Support
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        {messages.map((m) => (
+        {/* {messages.map((m) => (
           <ChatMessage
             key={m.id}
             sender={m.sender}
@@ -128,10 +133,11 @@ function Chatbot({ onSpeakingChange, onTypingChange }) {
             onSpeakingChange={onSpeakingChange}
           />
         ))}
-        {loading && <ChatMessage sender="bot" text="Typing..." />}
+        {loading && <ChatMessage sender="bot" text="Typing..." />} */}
+        Tap "Talk to Kikoo" and start speaking 🎤
       </div>
 
-      <ChatInput onSend={handleSend} disabled={loading} onTypingChange={onTypingChange} />
+      <ChatInput onSend={handleSend} disabled={loading} onTypingChange={onTypingChange} portalTarget={inputTarget} />
     </div>
   );
 }
