@@ -322,22 +322,12 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
                 disabled={disabled}
                 onClick={() => onSend?.(item.message)}
                 className="
-                  shrink-0
-                  rounded-full
-                  border
-                  border-[#ff4e7d]
-                  bg-white
-                  px-2
-                  py-1
-                  text-[9.5px]
-                  font-medium
-                  text-[#ff4e7d]
-                  hover:bg-[#fff0f4]
-                  transition
-                  cursor-pointer
-                  disabled:opacity-50
-                  disabled:cursor-not-allowed
-                "
+  shrink-0 rounded-full border border-[#ff4e7d] bg-white
+  px-3 py-1.5 text-[12px] sm:px-2 sm:py-1 sm:text-[10px]
+  font-medium text-[#ff4e7d]
+  hover:bg-[#fff0f4] transition cursor-pointer
+  disabled:opacity-50 disabled:cursor-not-allowed
+"
               >
                 {item.label}
               </button>
@@ -363,9 +353,9 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
               quickListening ? "Listening..." : "Type your message..."
             }
             disabled={disabled}
-            className={`min-w-0 flex-1 rounded-[20px] border px-3 py-[10px] text-[14px] outline-none ${
-              quickListening ? "border-[#4285F4]" : "border-[#ddd]"
-            }`}
+            className={`min-w-0 flex-1 rounded-[20px] border px-3 py-[10px] text-[16px] sm:text-[14px] outline-none ${
+  quickListening ? "border-[#4285F4]" : "border-[#ddd]"
+}`}
           />
 
           <button

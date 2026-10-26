@@ -82,9 +82,10 @@ const handleSend = async (userText, voiceMode = false, onStatusChange) => {
   return (
    // purana:
 // <div className="w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
-<div 
-style={{ display: "none" }} 
-className="relative w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
+<div
+  style={{ display: "none" }}
+  className="relative flex h-[480px] max-h-[70dvh] w-full max-w-full flex-col overflow-hidden rounded-[16px] border border-[#ddd] font-sans shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:w-[340px]"
+>
       <div className="bg-[#ff4e7d] text-white px-4 py-3 font-bold">
         Kikoo Support
       </div>
@@ -101,7 +102,7 @@ className="relative w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex
           />
         ))}
         {loading && <ChatMessage sender="bot" text="Typing..." />} */}
-        Tap "Talk to Kikoo" and start speaking 🎤
+        {/* Tap "Talk to Kikoo" and start speaking 🎤 */}
       </div>
 
       <ChatInput onSend={handleSend} disabled={loading} onTypingChange={onTypingChange} portalTarget={inputTarget} />
