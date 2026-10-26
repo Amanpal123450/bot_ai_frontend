@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
-import { playNaturalVoice, stopVoice } from "../utils/voice";
+// import { playNaturalVoice, stopVoice } from "../utils/voice";
+import { chatWithVoice } from "../utils/voice";
 
 const API_URL = `${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/chat`;
 
@@ -35,82 +36,48 @@ function Chatbot({ onSpeakingChange, onTypingChange, inputTarget }) {
   };
 
   // 🔑 Teesra param onStatusChange — voice mode se hi aata hai
-  const handleSend = async (userText, voiceMode = false, onStatusChange) => {
-    stopVoice(); // nayi baat shuru, purani awaaz band
+ const HISTORY_LIMIT = 8;
 
+const handleSend = async (userText, voiceMode = false, onStatusChange) => {
+  setMessages((prev) => [...prev, { id: genId(), sender: "user", text: userText }]);
+  setLoading(true);
+  onStatusChange?.("thinking");
+
+  try {
+    const { data, playback } = await chatWithVoice({
+      message: userText,
+      history: messages.slice(-HISTORY_LIMIT).map((m) => ({
+        id: m.id, sender: m.sender, text: m.text,
+      })),
+      gameState,
+      onStart: () => {
+        onSpeakingChange?.(true);
+        onStatusChange?.("speaking");
+      },
+      onEnd: () => onSpeakingChange?.(false),
+    });
+
+    const answer = data.answer || "Sorry, something went wrong.";
+    setGameState(data.gameState || {});
     setMessages((prev) => [
       ...prev,
-      { id: genId(), sender: "user", text: userText },
+      { id: genId(), sender: "bot", text: answer, image: data.image || null },
     ]);
+    setLoading(false);
 
-    setLoading(true);
-    onStatusChange?.("thinking");
+    if (voiceMode) await playback; // voice mode mein awaaz khatam hone tak ruko
+  } catch (err) {
+    if (err.name === "CancelledError") return;
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-    try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userText,
-          history: messages.map((m) => ({
-            id: m.id,
-            sender: m.sender,
-            text: m.text,
-          })),
-          gameState,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!res.ok) throw new Error(`Chat API failed: ${res.status}`);
-
-      const data = await res.json();
-      const answer = data.answer || "Sorry, something went wrong.";
-      setGameState(data.gameState || {});
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: genId(),
-          sender: "bot",
-          text: answer,
-          image: data.image || null,
-        },
-      ]);
-
-      setLoading(false);
-
-      // Text chat ho ya voice chat, jawab dono mein bolta hai.
-      // Voice mode mein await zaroori hai (mic tabhi dobara shuru hota hai jab awaaz poori ho)
-      const talking = speakAnswer(answer, onStatusChange);
-      if (voiceMode) await talking;
-    } catch (err) {
-      const message =
-        err.name === "AbortError"
-          ? "Server is taking too long to respond. Please try again."
-          : "Unable to connect to the server. Please try again later.";
-
-      console.error("Chat Error:", err);
-
-      setMessages((prev) => [
-        ...prev,
-        { id: genId(), sender: "bot", text: message },
-      ]);
-
-      setLoading(false);
-
-      // error ka message sirf voice mode mein bolo
-      if (voiceMode) await speakAnswer(message, onStatusChange);
-    } finally {
-      abortRef.current = null;
-    }
-  };
+    const message =
+      err.name === "AbortError"
+        ? "Server is taking too long to respond. Please try again."
+        : "Unable to connect to the server. Please try again later.";
+    console.error("Chat Error:", err);
+    setMessages((prev) => [...prev, { id: genId(), sender: "bot", text: message }]);
+    setLoading(false);
+  }
+};
 
   return (
    // purana:
