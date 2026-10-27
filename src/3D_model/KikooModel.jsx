@@ -9,8 +9,9 @@ import React, {
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
+import LottieBackground from "./Lottiebackground/Lottiebackground";
 
-const MODEL_URL = "/models/8.glb";
+const MODEL_URL = "/models/9.glb";
 const IDLE_DELAY_MS = 10000;
 const ONE_SHOT_NAMES = ["idle", "jump"];
 const BASE_POSE_RE = /noramal\.001/i;
@@ -451,20 +452,125 @@ if (c && name === "talk") c = withoutArmTracks(c, name); // 👈 toking mein haa
   );
 }
 
+// Jungle + playground background (sirf SVG, koi image nahi chahiye)
+function JungleBackground() {
+  const flowers = [
+    [30, 548, "#ff6fa5"], [52, 560, "#ffd23f"], [92, 572, "#ffffff"],
+    [150, 566, "#ff8a4c"], [250, 570, "#ffd23f"], [312, 556, "#ff6fa5"],
+    [350, 570, "#ffffff"], [372, 548, "#ff8a4c"],
+  ];
+  const flags = ["#ff5a5f", "#ffd23f", "#4cc9f0", "#7bd88f", "#c77dff", "#ff8a4c", "#ff5a5f", "#ffd23f", "#4cc9f0"];
+
+  return (
+    <svg
+      viewBox="0 0 400 600"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+    >
+      <defs>
+        <linearGradient id="kk-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#a8e0ff" />
+          <stop offset="0.55" stopColor="#e6f8d2" />
+          <stop offset="1" stopColor="#fff3c4" />
+        </linearGradient>
+        <radialGradient id="kk-sun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#fff6a8" stopOpacity="1" />
+          <stop offset="1" stopColor="#fff6a8" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="kk-ground" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#9be36f" />
+          <stop offset="1" stopColor="#4fa843" />
+        </linearGradient>
+      </defs>
+
+      {/* aasmaan + sooraj */}
+      <rect width="400" height="600" fill="url(#kk-sky)" />
+      <circle cx="320" cy="95" r="80" fill="url(#kk-sun)" />
+
+      {/* door ki pahadiyan */}
+      <path d="M0 340 Q70 280 150 330 T300 320 T400 305 L400 600 L0 600Z" fill="#86cf7f" />
+      <path d="M0 395 Q90 345 190 388 T400 372 L400 600 L0 600Z" fill="#5fb260" />
+
+      {/* zameen */}
+      <path d="M0 482 Q200 452 400 482 L400 600 L0 600Z" fill="url(#kk-ground)" />
+
+      {/* baayein ka ped */}
+      <path d="M26 600 C34 470 24 330 40 190 L64 190 C62 330 72 470 80 600Z" fill="#8a5a33" />
+      <path d="M46 560 C50 470 44 380 52 260" stroke="#6e4524" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <circle cx="52" cy="170" r="58" fill="#237f3c" />
+      <circle cx="18" cy="190" r="44" fill="#2e9c4a" />
+      <circle cx="92" cy="195" r="42" fill="#2e9c4a" />
+      <circle cx="55" cy="130" r="42" fill="#3fb35a" />
+
+      {/* daayein ka ped */}
+      <path d="M374 600 C366 480 376 340 360 210 L336 210 C338 340 328 480 320 600Z" fill="#8a5a33" />
+      <path d="M352 560 C348 470 354 390 346 290" stroke="#6e4524" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <circle cx="348" cy="190" r="58" fill="#237f3c" />
+      <circle cx="384" cy="212" r="44" fill="#2e9c4a" />
+      <circle cx="306" cy="215" r="40" fill="#2e9c4a" />
+      <circle cx="344" cy="148" r="42" fill="#3fb35a" />
+
+      {/* latakti bel */}
+      {[[130, 0, 112], [196, 0, 70], [262, 0, 96]].map(([x, y, h], i) => (
+        <g key={i}>
+          <path d={`M${x} ${y} C${x - 10} ${h * 0.4} ${x + 12} ${h * 0.7} ${x} ${h}`} stroke="#2f8f45" strokeWidth="5" fill="none" strokeLinecap="round" />
+          <ellipse cx={x + 7} cy={h * 0.55} rx="9" ry="4.5" fill="#3fb35a" transform={`rotate(-30 ${x + 7} ${h * 0.55})`} />
+          <ellipse cx={x - 7} cy={h * 0.85} rx="9" ry="4.5" fill="#3fb35a" transform={`rotate(30 ${x - 7} ${h * 0.85})`} />
+        </g>
+      ))}
+
+      {/* rang-birange jhande (playground jaisa) */}
+      <path d="M0 18 Q200 58 400 18" stroke="#8a5a33" strokeWidth="2.5" fill="none" />
+      {flags.map((c, i) => {
+        const t = (i + 0.7) / (flags.length + 0.4);
+        const x = t * 400;
+        const y = 18 + 40 * 2 * t * (1 - t) * 1.0 + 1;
+        return <path key={i} d={`M${x - 12} ${y} L${x + 12} ${y} L${x} ${y + 26}Z`} fill={c} />;
+      })}
+
+      {/* neeche ki jhaadiyan */}
+      {[[20, 575, 34], [70, 590, 28], [140, 596, 22], [270, 596, 22], [335, 588, 28], [385, 574, 34]].map(([x, y, r], i) => (
+        <circle key={i} cx={x} cy={y} r={r} fill={i % 2 ? "#3aa655" : "#2e9c4a"} />
+      ))}
+
+      {/* phool */}
+      {flowers.map(([x, y, c], i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r="5" fill={c} />
+          <circle cx={x} cy={y} r="2" fill="#ffb703" />
+        </g>
+      ))}
+
+      {/* titliyan */}
+      <g transform="translate(95 250)">
+        <ellipse cx="-6" cy="0" rx="7" ry="5" fill="#ff8fab" transform="rotate(-20 -6 0)" />
+        <ellipse cx="6" cy="0" rx="7" ry="5" fill="#ff8fab" transform="rotate(20 6 0)" />
+        <rect x="-1" y="-5" width="2" height="10" rx="1" fill="#6b3a1e" />
+      </g>
+      <g transform="translate(300 300)">
+        <ellipse cx="-6" cy="0" rx="7" ry="5" fill="#ffd23f" transform="rotate(-20 -6 0)" />
+        <ellipse cx="6" cy="0" rx="7" ry="5" fill="#ffd23f" transform="rotate(20 6 0)" />
+        <rect x="-1" y="-5" width="2" height="10" rx="1" fill="#6b3a1e" />
+      </g>
+    </svg>
+  );
+}
+
 export default function KikooModel({ speaking = false, typing = false }) {
   return (
-    // parent (380px x chatbot height) ko poora bhar do
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div style={{ position: "absolute", inset: 0, background: "#a8e0ff" }}>
+      <LottieBackground />
       <Canvas camera={{ position: [0, -0.7, 4.3], fov: 40, near: 0.1, far: 50 }}>
         <ambientLight intensity={2} />
         <directionalLight position={[15, 15, 15]} intensity={3} />
         <Model speaking={speaking} typing={typing} />
         <OrbitControls
-  target={[0, -0.7, 0]}
-  enableZoom={false}   // mouse wheel / pinch se chota-bada nahi hoga
-  enablePan={false}    // right-click drag se khisakega nahi
-  enableRotate={false}
-/>
+          target={[0, -0.7, 0]}
+          enableZoom={false}
+          enablePan={false}
+          enableRotate={false}
+        />
       </Canvas>
     </div>
   );

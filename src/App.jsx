@@ -15,14 +15,14 @@ function App() {
       <div className="fixed inset-x-0 bottom-0 z-[1000] flex items-stretch pb-[env(safe-area-inset-bottom)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:pb-0">
         {/* Left column: upar model, neeche suggestions + input */}
         <div className="flex w-full flex-col sm:w-[380px]">
-          <div className="relative h-[400px] max-h-[580px] sm:h-[520px] md:h-[320px] sm:max-h-none">
+        <div className="relative h-[400px] max-h-[580px] overflow-hidden rounded-t-2xl sm:h-[520px] sm:max-h-none sm:rounded-2xl md:h-[320px]">
   <KikooModel speaking={speaking} typing={typing} />
 </div>
 
           {/* ChatInput ke blocks yahan aayenge */}
           <div
             ref={setInputTarget}
-            className="mt-0 overflow-hidden rounded-t-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:mt-2 sm:rounded-2xl"
+            className="mt-0 overflow-hidden rounded-t-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:rounded-2xl"
           />
         </div>
 
