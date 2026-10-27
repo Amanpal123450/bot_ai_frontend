@@ -11,7 +11,7 @@ import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Lottiebackground";
 
-const MODEL_URL = "/models/9.glb";
+const MODEL_URL = "/models/10.glb";
 const IDLE_DELAY_MS = 10000;
 const ONE_SHOT_NAMES = ["idle", "jump"];
 const BASE_POSE_RE = /noramal\.001/i;
@@ -19,7 +19,7 @@ const CLIP_PATTERNS = {
   intro: /hayy/i, // page reload par      -> hayy(2)
   idle: /noramal\.001/i, // har 10 sec baad -> noramal.001
   jump: /^jump$/i, // model par click par  -> jump
-  talk: /toking/i, // bot bolte waqt       -> toking
+  talk: /toking2/i, // bot bolte waqt       -> toking
   typing: /^typing$/i,
 };
 

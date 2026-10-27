@@ -83,6 +83,9 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
   const SpeechRecognitionRef = useRef(null);
   const retryCountRef = useRef(0);
   const typingTimerRef = useRef(null);
+  const onSendRef = useRef(onSend);
+  onSendRef.current = onSend;          // hamesha latest onSend (purana state na pakde)
+  const heardRef = useRef("");         // mic ne jo suna wo yahan
 
   const notifyTyping = () => {
     onTypingChange?.(true);
@@ -99,6 +102,7 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
   useEffect(() => {
     return () => {
       voiceModeRef.current = false;
+      heardRef.current = "";
       recognitionRef.current?.stop();
       recognitionRef.current = null;
       clearTimeout(typingTimerRef.current);
@@ -118,7 +122,7 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
     if (e.key === "Enter") handleSend();
   };
 
-  const handleQuickMicClick = () => {
+    const handleQuickMicClick = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -127,10 +131,14 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
       return;
     }
 
+    // Mic chal raha ho aur dobara dabaya -> ruk jao (jo suna wo bhej diya jayega)
     if (quickListening) {
       recognitionRef.current?.stop();
       return;
     }
+
+    stopVoice();            // bot ki awaaz band, warna mic wahi sun lega
+    heardRef.current = "";
 
     const recognition = new SpeechRecognition();
     recognition.lang = "en-IN";
@@ -142,17 +150,31 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
 
     recognition.onresult = (event) => {
       let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
       }
-      setText(transcript.trim());
+      heardRef.current = transcript.trim();
+      setText(heardRef.current); // bolte waqt text box mein dikhta rahega
     };
 
-    recognition.onerror = () => setQuickListening(false);
+    recognition.onerror = () => {
+      heardRef.current = "";   // error mein adhoora text mat bhejo
+      setText("");
+      setQuickListening(false);
+    };
 
+    // 🔑 Bolna khatam -> AUTO SEND
     recognition.onend = () => {
       setQuickListening(false);
       recognitionRef.current = null;
+
+      const spoken = heardRef.current.trim();
+      heardRef.current = "";
+      if (spoken) {
+        stopTyping();
+        setText("");
+        onSendRef.current?.(spoken, false);
+      }
     };
 
     recognitionRef.current = recognition;
