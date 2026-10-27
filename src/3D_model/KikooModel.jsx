@@ -459,7 +459,12 @@ export default function KikooModel({ speaking = false, typing = false }) {
         <ambientLight intensity={2} />
         <directionalLight position={[15, 15, 15]} intensity={3} />
         <Model speaking={speaking} typing={typing} />
-        <OrbitControls target={[0, -0.7, 0]} />
+        <OrbitControls
+  target={[0, -0.7, 0]}
+  enableZoom={false}   // mouse wheel / pinch se chota-bada nahi hoga
+  enablePan={false}    // right-click drag se khisakega nahi
+  enableRotate={false}
+/>
       </Canvas>
     </div>
   );
