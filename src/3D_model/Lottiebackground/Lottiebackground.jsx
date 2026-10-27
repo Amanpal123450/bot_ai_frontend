@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import PlaygroundBackground from "./PlaygroundBackground";
+import PlaygroundBackground from "./Playgroundbackground.jsx";
+// import PlaygroundBackground from "./PlaygroundBackground";
 
 // Lottie file yahan rakho: public/backgrounds/playground.lottie  (ya .json, to neeche src badal do)
 const LOTTIE_SRC = "/backgrounds/playground.lottie";
