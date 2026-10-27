@@ -22,7 +22,7 @@ function App() {
           {/* ChatInput ke blocks yahan aayenge */}
           <div
             ref={setInputTarget}
-            className="mt-0 overflow-hidden rounded-t-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:rounded-2xl"
+            className="mt-0  overflow-hidden rounded-t-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:rounded-2xl"
           />
         </div>
 
