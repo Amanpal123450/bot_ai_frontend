@@ -6,6 +6,54 @@ let playToken = 0;
 let callId = 0;
 let streamAbort = null;
 
+/* iOS / Safari fix: audio "unlock"
+ * Ek hi <audio> element hai: pehle tap par unlock hota hai, phir har chunk usi mein bajta hai. */
+const player = new Audio();
+player.setAttribute("playsinline", "");
+player.preload = "auto";
+let unlocked = false;
+
+function silentWavUrl() {
+  const sampleRate = 8000;
+  const samples = 800; // 0.1 sec ki khamoshi
+  const buf = new ArrayBuffer(44 + samples * 2);
+  const v = new DataView(buf);
+  const str = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF"); v.setUint32(4, 36 + samples * 2, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, samples * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+
+const UNLOCK_EVENTS = ["touchend", "click", "keydown"];
+
+function unlockAudio() {
+  if (unlocked || currentAudio) return; // awaaz chal rahi ho to chhedo mat
+  try {
+    player.src = silentWavUrl();
+    const p = player.play();
+    Promise.resolve(p)
+      .then(() => {
+        unlocked = true;
+        player.pause();
+        UNLOCK_EVENTS.forEach((ev) => document.removeEventListener(ev, unlockAudio));
+      })
+      .catch(() => {});
+  } catch {
+    /* agle tap par dobara koshish */
+  }
+}
+
+if (typeof document !== "undefined") {
+  UNLOCK_EVENTS.forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
+}
+
+function loadPlayer(url) {
+  player.src = url;
+  return player;
+}
+
 function killCurrentAudio() {
   if (currentAudio) {
     currentAudio.pause();
@@ -69,7 +117,7 @@ export function chatWithVoice({
       }
 
       playing = true;
-      const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
+      const audio = loadPlayer(`data:audio/mpeg;base64,${b64}`);
       currentAudio = audio;
       currentResolve = finish;
 
@@ -191,7 +239,7 @@ export async function playNaturalVoice(text, setSpeaking = null, options = {}) {
     if (!data.audio) throw new Error("No audio received");
     if (myToken !== playToken) return;
 
-    const audio = new Audio(`data:audio/mpeg;base64,${data.audio}`);
+    const audio = loadPlayer(`data:audio/mpeg;base64,${data.audio}`);
     currentAudio = audio;
 
     await new Promise((resolve, reject) => {
