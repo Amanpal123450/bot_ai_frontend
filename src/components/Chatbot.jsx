@@ -1,16 +1,11 @@
 import React, { useState, useRef } from "react";
-import ChatMessage from "./ChatMessage";
+// import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
-// import { playNaturalVoice, stopVoice } from "../utils/voice";
 import { chatWithVoice } from "../utils/voice";
-
-const API_URL = `${import.meta.env.VITE_API_BASE || "http://localhost:3001"}/api/chat`;
 
 let idCounter = 0;
 const genId = () => ++idCounter;
-
-// function Chatbot({ onSpeakingChange, onTypingChange }) {
-function Chatbot({ onSpeakingChange, onTypingChange, inputTarget }) {
+function Chatbot({ onSpeakingChange, onTypingChange, onThinkingChange, inputTarget }) {
   const [messages, setMessages] = useState([
     {
       id: genId(),
@@ -18,70 +13,63 @@ function Chatbot({ onSpeakingChange, onTypingChange, inputTarget }) {
       text: "Hi! You can ask me anything about the Kikoo contest.",
     },
   ]);
+  const reqRef = useRef(0);
   const [gameState, setGameState] = useState({});
   const [loading, setLoading] = useState(false);
-  const abortRef = useRef(null);
+  const HISTORY_LIMIT = 8;
 
-  // Bot ka jawab bolo. Audio shuru hote hi talk animation, khatam hote hi band
-  const speakAnswer = async (text, onStatusChange) => {
-    onStatusChange?.("speaking");
+  const handleSend = async (userText, voiceMode = false, onStatusChange) => {
+    const myReq = ++reqRef.current;
+    const stopThinking = () => {
+      if (reqRef.current === myReq) onThinkingChange?.(false);
+    };
+
+    setMessages((prev) => [...prev, { id: genId(), sender: "user", text: userText }]);
+    setLoading(true);
+    onThinkingChange?.(true);      
+    onStatusChange?.("thinking");
+
     try {
-      await playNaturalVoice(text, null, {
-        onStart: () => onSpeakingChange?.(true),
+      const { data, playback } = await chatWithVoice({
+        message: userText,
+        history: messages.slice(-HISTORY_LIMIT).map((m) => ({
+          id: m.id, sender: m.sender, text: m.text,
+        })),
+        gameState,
+        onStart: () => {
+          stopThinking();          
+          onSpeakingChange?.(true);
+          onStatusChange?.("speaking");
+        },
         onEnd: () => onSpeakingChange?.(false),
       });
-    } catch {
-      // ignore
+
+      const answer = data.answer || "Sorry, something went wrong.";
+      setGameState(data.gameState || {});
+      setMessages((prev) => [
+        ...prev,
+        { id: genId(), sender: "bot", text: answer, image: data.image || null },
+      ]);
+      setLoading(false);
+
+      playback.then(stopThinking);  
+      if (voiceMode) await playback;
+    } catch (err) {
+      stopThinking();            
+      if (err.name === "CancelledError") return;
+
+      const message =
+        err.name === "AbortError"
+          ? "Server is taking too long to respond. Please try again."
+          : "Unable to connect to the server. Please try again later.";
+      console.error("Chat Error:", err);
+      setMessages((prev) => [...prev, { id: genId(), sender: "bot", text: message }]);
+      setLoading(false);
     }
   };
 
-  // 🔑 Teesra param onStatusChange — voice mode se hi aata hai
- const HISTORY_LIMIT = 8;
-
-const handleSend = async (userText, voiceMode = false, onStatusChange) => {
-  setMessages((prev) => [...prev, { id: genId(), sender: "user", text: userText }]);
-  setLoading(true);
-  onStatusChange?.("thinking");
-
-  try {
-    const { data, playback } = await chatWithVoice({
-      message: userText,
-      history: messages.slice(-HISTORY_LIMIT).map((m) => ({
-        id: m.id, sender: m.sender, text: m.text,
-      })),
-      gameState,
-      onStart: () => {
-        onSpeakingChange?.(true);
-        onStatusChange?.("speaking");
-      },
-      onEnd: () => onSpeakingChange?.(false),
-    });
-
-    const answer = data.answer || "Sorry, something went wrong.";
-    setGameState(data.gameState || {});
-    setMessages((prev) => [
-      ...prev,
-      { id: genId(), sender: "bot", text: answer, image: data.image || null },
-    ]);
-    setLoading(false);
-
-    if (voiceMode) await playback; // voice mode mein awaaz khatam hone tak ruko
-  } catch (err) {
-    if (err.name === "CancelledError") return;
-
-    const message =
-      err.name === "AbortError"
-        ? "Server is taking too long to respond. Please try again."
-        : "Unable to connect to the server. Please try again later.";
-    console.error("Chat Error:", err);
-    setMessages((prev) => [...prev, { id: genId(), sender: "bot", text: message }]);
-    setLoading(false);
-  }
-};
-
   return (
-   // purana:
-// <div className="w-[340px] h-[480px] border border-[#ddd] rounded-[16px] flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.1)] font-sans overflow-hidden">
+   
 <div
   style={{ display: "none" }}
   className="relative flex h-[480px] max-h-[70dvh] w-full max-w-full flex-col overflow-hidden rounded-[16px] border border-[#ddd] font-sans shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:w-[340px]"

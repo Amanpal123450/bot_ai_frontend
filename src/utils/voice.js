@@ -6,8 +6,6 @@ let playToken = 0;
 let callId = 0;
 let streamAbort = null;
 
-/* iOS / Safari fix: audio "unlock"
- * Ek hi <audio> element hai: pehle tap par unlock hota hai, phir har chunk usi mein bajta hai. */
 const player = new Audio();
 player.setAttribute("playsinline", "");
 player.preload = "auto";

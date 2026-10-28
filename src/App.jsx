@@ -6,6 +6,7 @@ function App() {
   const [speaking, setSpeaking] = useState(false);
   const [typing, setTyping] = useState(false);
   const [inputTarget, setInputTarget] = useState(null);
+  const [thinking, setThinking] = useState(false);
 
   return (
     <div className="font-sans">
@@ -16,7 +17,7 @@ function App() {
         {/* Left column: upar model, neeche suggestions + input */}
         <div className="flex w-full flex-col sm:w-[380px]">
         <div className="relative h-[400px] max-h-[580px] overflow-hidden rounded-t-2xl sm:h-[520px] sm:max-h-none sm:rounded-2xl md:h-[320px]">
-  <KikooModel speaking={speaking} typing={typing} />
+  <KikooModel speaking={speaking} typing={typing} thinking={thinking} />
 </div>
 
           {/* ChatInput ke blocks yahan aayenge */}
@@ -26,11 +27,12 @@ function App() {
           />
         </div>
 
-        <Chatbot
-          onSpeakingChange={setSpeaking}
-          onTypingChange={setTyping}
-          inputTarget={inputTarget}
-        />
+       <Chatbot
+  onSpeakingChange={setSpeaking}
+  onTypingChange={setTyping}
+  onThinkingChange={setThinking}
+  inputTarget={inputTarget}
+/>
       </div>
     </div>
   );
