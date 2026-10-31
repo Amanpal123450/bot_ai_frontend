@@ -6,6 +6,7 @@ const WS_URL = API_BASE.replace(/^http/, "ws") + "/ws";
  * ------------------------------------------------------------------ */
 let currentAudio = null;
 let currentResolve = null;
+let currentCleanup = null;
 let playToken = 0;
 let callId = 0;
 
@@ -56,6 +57,8 @@ function loadPlayer(url) {
 }
 
 function killCurrentAudio() {
+  currentCleanup?.();
+  currentCleanup = null;
   if (currentAudio) {
     currentAudio.pause();
     currentAudio.onplaying = null;
@@ -68,6 +71,117 @@ function killCurrentAudio() {
   const r = currentResolve;
   currentResolve = null;
   r?.();
+}
+
+/*
+ * Fish sends one MP3 stream in several websocket messages.  Replacing an
+ * <audio> src for every message makes the browser recreate its decoder at
+ * every boundary, which is heard as a small pause.  MediaSource keeps one
+ * decoder and appends those bytes to the same timeline instead.
+ */
+function createStreamPlayer({ onStart, onEnd, onError }) {
+  if (typeof MediaSource === "undefined" || !MediaSource.isTypeSupported("audio/mpeg")) {
+    return null;
+  }
+
+  const mediaSource = new MediaSource();
+  const objectUrl = URL.createObjectURL(mediaSource);
+  const pending = [];
+  let sourceBuffer = null;
+  let opened = false;
+  let inputEnded = false;
+  let disposed = false;
+  let started = false;
+  let ended = false;
+  let playRequested = false;
+
+  const finish = () => {
+    if (ended || disposed) return;
+    ended = true;
+    onEnd();
+  };
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    pending.length = 0;
+    player.onplaying = null;
+    player.onended = null;
+    player.onerror = null;
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  const endStream = () => {
+    if (!inputEnded || !opened || !sourceBuffer || sourceBuffer.updating || pending.length) return;
+    try {
+      if (mediaSource.readyState === "open") mediaSource.endOfStream();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const pump = () => {
+    if (disposed || !sourceBuffer || sourceBuffer.updating) return;
+    const next = pending.shift();
+    if (!next) return endStream();
+    try {
+      sourceBuffer.appendBuffer(next);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  mediaSource.addEventListener("sourceopen", () => {
+    if (disposed) return;
+    opened = true;
+    try {
+      sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+      sourceBuffer.mode = "sequence";
+      sourceBuffer.addEventListener("updateend", () => {
+        if (!playRequested && !disposed) {
+          playRequested = true;
+          player.play().catch((err) => {
+            if (err.name !== "AbortError") onError(err);
+          });
+        }
+        pump();
+      });
+      sourceBuffer.addEventListener("error", () => onError(new Error("Audio buffer error")));
+      pump();
+    } catch (err) {
+      onError(err);
+    }
+  }, { once: true });
+
+  player.onplaying = () => {
+    if (!started && !disposed) {
+      started = true;
+      onStart();
+    }
+  };
+  player.onended = finish;
+  player.onerror = () => onError(new Error("Audio playback error"));
+  player.src = objectUrl;
+  player.load();
+
+  currentAudio = player;
+  currentCleanup = dispose;
+
+  return {
+    append(base64) {
+      if (disposed) return;
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      pending.push(bytes);
+      pump();
+    },
+    end() {
+      inputEnded = true;
+      endStream();
+    },
+    dispose,
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -107,7 +221,7 @@ function getSocket() {
   return socketPromise;
 }
 
-// // App load par ek baar bula lo, pehle message par connect ka time na lage
+
 // export function warmVoiceSocket() {
 //   getSocket().catch(() => {});
 // }
@@ -116,9 +230,7 @@ function sendCancel(id) {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "cancel", id }));
 }
 
-/* ------------------------------------------------------------------ *
- *  CHAT + VOICE (WebSocket par)
- * ------------------------------------------------------------------ */
+
 export function chatWithVoice({
   message,
   history = [],
@@ -141,6 +253,7 @@ export function chatWithVoice({
     let started = false;
     let ended = false;
     let failed = false;
+    let streamPlayer = null;
 
     let finishPlayback;
     const playback = new Promise((r) => (finishPlayback = r));
@@ -153,8 +266,22 @@ export function chatWithVoice({
       listeners.delete(id);
       if (activeId === id) activeId = null;
       if (started) onEnd?.();
+      streamPlayer?.dispose();
       finishPlayback();
     };
+
+    const startContinuousPlayback = () => createStreamPlayer({
+      onStart: () => {
+        if (!started && !cancelled()) {
+          started = true;
+          onStart?.();
+        }
+      },
+      onEnd: finish,
+      onError: fail,
+    });
+
+    streamPlayer = startContinuousPlayback();
 
     const cancelled = () => myToken !== playToken;
 
@@ -200,10 +327,21 @@ export function chatWithVoice({
       if (!gotAnswer) {
         clearTimeout(timeoutId);
         rejectAnswer(err);
+        if (streamPlayer) {
+          streamPlayer.dispose();
+          streamPlayer = null;
+          killCurrentAudio();
+        }
         return finish();
       }
       console.error("Voice stream error:", err);
       streamDone = true;
+      if (streamPlayer) {
+        streamPlayer.dispose();
+        streamPlayer = null;
+        killCurrentAudio();
+        return finish();
+      }
       if (!playing && queue.length === 0) finish();
     }
 
@@ -223,17 +361,24 @@ export function chatWithVoice({
       
       else if (evt.type === "replace") {
         queue.length = 0;
+        streamPlayer?.dispose();
+        streamPlayer = null;
         if (currentAudio) {
           currentResolve = null;
           killCurrentAudio();
         }
         playing = false;
+        streamPlayer = startContinuousPlayback();
       } else if (evt.type === "audio") {
-        queue.push(evt.audio);
-        playNext();
+        if (streamPlayer) streamPlayer.append(evt.audio);
+        else {
+          queue.push(evt.audio);
+          playNext();
+        }
       } else if (evt.type === "done") {
         streamDone = true;
-        if (!playing && queue.length === 0) finish();
+        if (streamPlayer) streamPlayer.end();
+        else if (!playing && queue.length === 0) finish();
         else playNext();
       } else if (evt.type === "error") {
         fail(new Error(evt.error || "Chat failed"));
