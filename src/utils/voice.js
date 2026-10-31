@@ -56,6 +56,19 @@ function loadPlayer(url) {
   return player;
 }
 
+function isIOS() {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function killCurrentAudio() {
   currentCleanup?.();
   currentCleanup = null;
@@ -170,10 +183,7 @@ function createStreamPlayer({ onStart, onEnd, onError }) {
   return {
     append(base64) {
       if (disposed) return;
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      pending.push(bytes);
+      pending.push(base64ToBytes(base64));
       pump();
     },
     end() {
@@ -282,6 +292,10 @@ export function chatWithVoice({
     });
 
     streamPlayer = startContinuousPlayback();
+    // Safari on iOS often cannot append raw MP3 to MediaSource. In that case
+    // wait for the complete MP3 stream and play one Blob, rather than adding a
+    // gap between every individual websocket chunk.
+    const bufferFallbackForIOS = !streamPlayer && isIOS();
 
     const cancelled = () => myToken !== playToken;
 
@@ -314,6 +328,44 @@ export function chatWithVoice({
       audio.onended = next;
       audio.onerror = next;
       audio.play().catch(next);
+    };
+
+    const playBufferedFallback = () => {
+      if (cancelled()) return finish();
+      if (playing || queue.length === 0) return finish();
+
+      playing = true;
+      const url = URL.createObjectURL(new Blob(queue.splice(0).map(base64ToBytes), { type: "audio/mpeg" }));
+      const audio = loadPlayer(url);
+      const cleanup = () => URL.revokeObjectURL(url);
+      currentAudio = audio;
+      currentCleanup = cleanup;
+      currentResolve = finish;
+
+      audio.onplaying = () => {
+        if (!started && !cancelled()) {
+          started = true;
+          onStart?.();
+        }
+      };
+      audio.onended = () => {
+        currentCleanup = null;
+        cleanup();
+        playing = false;
+        finish();
+      };
+      audio.onerror = () => {
+        currentCleanup = null;
+        cleanup();
+        playing = false;
+        fail(new Error("Audio playback error"));
+      };
+      audio.play().catch((err) => {
+        currentCleanup = null;
+        cleanup();
+        playing = false;
+        fail(err);
+      });
     };
 
     function fail(err) {
@@ -373,11 +425,12 @@ export function chatWithVoice({
         if (streamPlayer) streamPlayer.append(evt.audio);
         else {
           queue.push(evt.audio);
-          playNext();
+          if (!bufferFallbackForIOS) playNext();
         }
       } else if (evt.type === "done") {
         streamDone = true;
         if (streamPlayer) streamPlayer.end();
+        else if (bufferFallbackForIOS) playBufferedFallback();
         else if (!playing && queue.length === 0) finish();
         else playNext();
       } else if (evt.type === "error") {
