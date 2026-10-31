@@ -9,7 +9,8 @@ import React, {
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
-import LottieBackground from "./Lottiebackground/Lottiebackground";
+// import LottieBackground from "./Lottiebackground/Lottiebackground";
+import PlaygroundBackground from "./Lottiebackground/Playgroundbackground";
 
 const MODEL_URL = "/models/11.glb";
 const IDLE_DELAY_MS = 10000;
@@ -470,7 +471,7 @@ if (c && name === "talk") c = withoutArmTracks(c, name); // 👈 toking mein haa
 export default function KikooModel({ speaking = false, typing = false, thinking = false }) {
   return (
     <div style={{ position: "absolute", inset: 0, background: "#a8e0ff" }}>
-      <LottieBackground />
+      <PlaygroundBackground />
       <Canvas camera={{ position: [0, -0.7, 4.3], fov: 40, near: 0.1, far: 50 }}>
         <ambientLight intensity={2} />
         <directionalLight position={[15, 15, 15]} intensity={3} />

@@ -2,24 +2,24 @@ import { Loader2, Volume2 } from "lucide-react";
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
-import { playNaturalVoice } from "../utils/voice";
+// import { playNaturalVoice } from "../utils/voice";
 
 function ChatMessage({ sender, text, onSend, image, onSpeakingChange }) {
   const isUser = sender === "user";
   const [speaking, setSpeaking] = useState(false);
   const [imageFullScreen, setImageFullScreen] = useState(false);
 
-  const handleSpeak = async () => {
-    setSpeaking(true);
-    try {
-      await playNaturalVoice(text, setSpeaking, {
-        onStart: () => onSpeakingChange?.(true),
-        onEnd: () => onSpeakingChange?.(false),
-      });
-    } catch {
-      setSpeaking(false);
-    }
-  };
+  // const handleSpeak = async () => {
+  //   setSpeaking(true);
+  //   try {
+  //     await playNaturalVoice(text, setSpeaking, {
+  //       onStart: () => onSpeakingChange?.(true),
+  //       onEnd: () => onSpeakingChange?.(false),
+  //     });
+  //   } catch {
+  //     setSpeaking(false);
+  //   }
+  // };
 
   const formattedText = String(text || "")
     .replace(/\\n/g, "\n")

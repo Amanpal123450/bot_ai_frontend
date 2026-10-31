@@ -1,10 +1,13 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const WS_URL = API_BASE.replace(/^http/, "ws") + "/ws";
 
+/* ------------------------------------------------------------------ *
+ *  AUDIO PLAYER (ek hi <audio> element, mobile unlock ke saath)
+ * ------------------------------------------------------------------ */
 let currentAudio = null;
 let currentResolve = null;
 let playToken = 0;
 let callId = 0;
-let streamAbort = null;
 
 const player = new Audio();
 player.setAttribute("playsinline", "");
@@ -67,21 +70,68 @@ function killCurrentAudio() {
   r?.();
 }
 
+/* ------------------------------------------------------------------ *
+ *  WEBSOCKET (browser <-> server)
+ * ------------------------------------------------------------------ */
+let socket = null;
+let socketPromise = null;
+let reqId = 0;
+let activeId = null;
+const listeners = new Map(); // requestId -> handler
+
+function getSocket() {
+  if (socket && socket.readyState === WebSocket.OPEN) return Promise.resolve(socket);
+  if (socketPromise) return socketPromise;
+
+  socketPromise = new Promise((resolve, reject) => {
+    const s = new WebSocket(WS_URL);
+    let opened = false;
+    const timer = setTimeout(() => s.close(), 8000);
+
+    s.onopen = () => { opened = true; clearTimeout(timer); socket = s; resolve(s); };
+    s.onmessage = (e) => {
+      let evt;
+      try { evt = JSON.parse(e.data); } catch { return; }
+      listeners.get(evt.id)?.(evt);
+    };
+    s.onclose = () => {
+      clearTimeout(timer);
+      const wasCurrent = socket === s || !socket;
+      if (socket === s) socket = null;
+      socketPromise = null;
+      if (!opened) reject(new Error("WebSocket connect failed"));
+      if (wasCurrent) listeners.forEach((h) => h({ type: "error", error: "Connection lost" }));
+    };
+    s.onerror = () => {};
+  });
+  return socketPromise;
+}
+
+// // App load par ek baar bula lo, pehle message par connect ka time na lage
+// export function warmVoiceSocket() {
+//   getSocket().catch(() => {});
+// }
+
+function sendCancel(id) {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "cancel", id }));
+}
+
+/* ------------------------------------------------------------------ *
+ *  CHAT + VOICE (WebSocket par)
+ * ------------------------------------------------------------------ */
 export function chatWithVoice({
   message,
   history = [],
   gameState = {},
   onStart,
   onEnd,
-  onText, // optional: live text tokens
+  onText,
   timeoutMs = 20000,
 }) {
   stopVoice();
   const myToken = ++playToken;
-
-  const controller = new AbortController();
-  streamAbort = controller;
-  let timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const id = ++reqId;
+  activeId = id;
 
   return new Promise((resolveAnswer, rejectAnswer) => {
     const queue = [];
@@ -90,14 +140,18 @@ export function chatWithVoice({
     let playing = false;
     let started = false;
     let ended = false;
+    let failed = false;
 
     let finishPlayback;
     const playback = new Promise((r) => (finishPlayback = r));
+    let timeoutId = setTimeout(() => fail(new Error("Chat timeout")), timeoutMs);
 
     const finish = () => {
       if (ended) return;
       ended = true;
       clearTimeout(timeoutId);
+      listeners.delete(id);
+      if (activeId === id) activeId = null;
       if (started) onEnd?.();
       finishPlayback();
     };
@@ -135,6 +189,24 @@ export function chatWithVoice({
       audio.play().catch(next);
     };
 
+    function fail(err) {
+      if (failed || ended) return;
+      failed = true;
+      if (cancelled()) {
+        if (!gotAnswer) rejectAnswer(Object.assign(new Error("cancelled"), { name: "CancelledError" }));
+        return finish();
+      }
+      sendCancel(id);
+      if (!gotAnswer) {
+        clearTimeout(timeoutId);
+        rejectAnswer(err);
+        return finish();
+      }
+      console.error("Voice stream error:", err);
+      streamDone = true;
+      if (!playing && queue.length === 0) finish();
+    }
+
     const handleEvent = (evt) => {
       if (evt.type === "answer") {
         gotAnswer = true;
@@ -143,9 +215,13 @@ export function chatWithVoice({
           data: { answer: evt.answer, gameState: evt.gameState, image: evt.image },
           playback,
         });
-      } else if (evt.type === "text") {
-        onText?.(evt.delta);
-      } else if (evt.type === "replace") {
+      } 
+      
+      // else if (evt.type === "text") {
+      //   onText?.(evt.delta);
+      // } 
+      
+      else if (evt.type === "replace") {
         queue.length = 0;
         if (currentAudio) {
           currentResolve = null;
@@ -155,127 +231,108 @@ export function chatWithVoice({
       } else if (evt.type === "audio") {
         queue.push(evt.audio);
         playNext();
+      } else if (evt.type === "done") {
+        streamDone = true;
+        if (!playing && queue.length === 0) finish();
+        else playNext();
       } else if (evt.type === "error") {
-        throw new Error(evt.error || "Chat failed");
+        fail(new Error(evt.error || "Chat failed"));
+      } else if (evt.type === "cancelled") {
+        fail(new Error("cancelled"));
       }
     };
 
-    (async () => {
-      const res = await fetch(`${API_BASE}/api/chat-voice`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history, gameState }),
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error(`Chat API failed: ${res.status}`);
+    listeners.set(id, handleEvent);
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-
-        let nl;
-        while ((nl = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, nl).trim();
-          buf = buf.slice(nl + 1);
-          if (line) handleEvent(JSON.parse(line));
-        }
-      }
-
-      streamDone = true;
-      if (!playing && queue.length === 0) finish();
-      else playNext();
-    })().catch((err) => {
-      if (cancelled()) {
-        if (!gotAnswer) rejectAnswer(Object.assign(new Error("cancelled"), { name: "CancelledError" }));
-        return finish();
-      }
-      if (!gotAnswer) {
-        clearTimeout(timeoutId);
-        return rejectAnswer(err);
-      }
-      console.error("Voice stream error:", err);
-      streamDone = true;
-      if (!playing && queue.length === 0) finish();
-    });
+    getSocket()
+      .then((s) => {
+        console.log("main ", s)
+        if (cancelled()) return;
+        s.send(JSON.stringify({ type: "chat", id, message, history, gameState }));
+      })
+      .catch(fail);
   });
 }
 
 
-export async function playNaturalVoice(text, setSpeaking = null, options = {}) {
-  const { onStart, onEnd } = options;
-  const myToken = ++playToken;
-  const myCall = ++callId;
+// export async function playNaturalVoice(text, setSpeaking = null, options = {}) {
+//   const { onStart, onEnd } = options;
+//   const myToken = ++playToken;
+//   const myCall = ++callId;
 
-  killCurrentAudio();
+//   killCurrentAudio();
 
-  let started = false;
-  let timeoutId;
-  if (setSpeaking) setSpeaking(true);
+//   let started = false;
+//   let timeoutId;
+//   if (setSpeaking) setSpeaking(true);
 
-  try {
-    const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), 15000);
+//   try {
+//     const controller = new AbortController();
+//     timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    const res = await fetch(`${API_BASE}/api/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text?.slice(0, 1000) }),
-      signal: controller.signal,
-    });
+//     const res = await fetch(`${API_BASE}/api/speak`, {
+//       method: "POST",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({ text: text?.slice(0, 1000) }),
+//       signal: controller.signal,
+//     });
 
-    clearTimeout(timeoutId);
+//     clearTimeout(timeoutId);
 
-    if (myToken !== playToken) return;
-    if (!res.ok) throw new Error(`Voice generation failed: ${res.status}`);
+//     if (myToken !== playToken) return;
+//     if (!res.ok) throw new Error(`Voice generation failed: ${res.status}`);
 
-    const data = await res.json();
-    if (!data.audio) throw new Error("No audio received");
-    if (myToken !== playToken) return;
+//     const data = await res.json();
+//     if (!data.audio) throw new Error("No audio received");
+//     if (myToken !== playToken) return;
 
-    const audio = loadPlayer(`data:audio/mpeg;base64,${data.audio}`);
-    currentAudio = audio;
+//     const audio = loadPlayer(`data:audio/mpeg;base64,${data.audio}`);
+//     currentAudio = audio;
 
-    await new Promise((resolve, reject) => {
-      currentResolve = resolve;
+//     await new Promise((resolve, reject) => {
+//       currentResolve = resolve;
 
-      audio.onplaying = () => {
-        if (!started && myToken === playToken) {
-          started = true;
-          onStart?.();
-        }
-      };
-      audio.onended = () => resolve();
-      audio.onerror = () => reject(new Error("Audio playback error"));
+//       audio.onplaying = () => {
+//         if (!started && myToken === playToken) {
+//           started = true;
+//           onStart?.();
+//         }
+//       };
+//       audio.onended = () => resolve();
+//       audio.onerror = () => reject(new Error("Audio playback error"));
 
-      audio.play().catch(reject);
-    });
-  } catch (err) {
-    if (err.name === "AbortError") {
-      console.error("Voice generation timed out");
-    } else {
-      console.error("Voice generation failed:", err);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-    if (started) onEnd?.();
-    if (myToken === playToken) {
-      currentAudio = null;
-      currentResolve = null;
-    }
+//       audio.play().catch(reject);
+//     });
+//   } catch (err) {
+//     if (err.name === "AbortError") {
+//       console.error("Voice generation timed out");
+//     } else {
+//       console.error("Voice generation failed:", err);
+//     }
+//     throw err;
+//   } finally {
+//     clearTimeout(timeoutId);
+//     if (started) onEnd?.();
+//     if (myToken === playToken) {
+//       currentAudio = null;
+//       currentResolve = null;
+//     }
 
-    if (myCall === callId && setSpeaking) setSpeaking(false);
-  }
-}
+//     if (myCall === callId && setSpeaking) setSpeaking(false);
+//   }
+// }
 
+/* ------------------------------------------------------------------ *
+ *  STOP (bot ki awaaz + server ka kaam dono band)
+ * ------------------------------------------------------------------ */
 export function stopVoice() {
   playToken++;
-  streamAbort?.abort();
-  streamAbort = null;
+  const id = activeId;
+  activeId = null;
+  if (id !== null) {
+    sendCancel(id);                              // server: LLM/Fish ka kaam band
+    listeners.get(id)?.({ type: "cancelled" });  // promise settle karo
+    listeners.delete(id);
+  }
   killCurrentAudio();
 }
