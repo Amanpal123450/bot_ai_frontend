@@ -6,10 +6,10 @@ import { stopVoice } from "../utils/voice";
 const MAX_RETRY_ATTEMPTS = 3;
 const RESTART_DELAY = 400; // 🔑 mic restart se pehle chhota gap — InvalidStateError avoid karta hai
 const suggestions = [
-  {
-    label: "🎨 Drawing",
-    message: "Draw something for me",
-  },
+  // {
+  //   label: "🎨 Drawing",
+  //   message: "Draw something for me",
+  // },
   {
     label: "🔢 Math Game",
     message: "Start a math game",
@@ -72,7 +72,7 @@ const suggestions = [
   },
 ];
 
-function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
+function ChatInput({ onSend, disabled, onTypingChange, portalTarget, gameOptions = [], onOptionSelect }) {
   const [text, setText] = useState("");
   const [quickListening, setQuickListening] = useState(false);
   const [voiceModeOn, setVoiceModeOn] = useState(false);
@@ -187,26 +187,6 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
     }
   };
 
-  // 🔑 YE FUNCTION AB "CONTINUOUS LOOP" KA ENGINE HAI
-  const handleVoiceConversationClick = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Your browser does not support voice input. Please try Chrome.");
-      return;
-    }
-
-    if (voiceModeRef.current) return;
-
-    voiceModeRef.current = true;
-    SpeechRecognitionRef.current = SpeechRecognition;
-    retryCountRef.current = 0;
-
-    setVoiceModeOn(true);
-    setVoiceState("listening");
-    startVoiceRecognition();
-  };
 
   const startVoiceRecognition = () => {
     // 🔑 Jab tak "Kikoo Voice" screen open hai (voiceModeRef true hai),
@@ -324,8 +304,27 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
   // 👇 Suggestions + input row. Component ke ANDAR hai, taaki state/handlers mil sakein.
   const inputBlocks = (
     <>
+      {gameOptions.length > 0 && !voiceModeOn && (
+        <div className="border-t border-[#eee] bg-white px-3 py-3">
+          <p className="mb-2 text-center text-sm font-semibold text-[#333]">Choose an answer</p>
+          <div className="grid grid-cols-2 gap-2">
+            {gameOptions.map((option) => (
+              <button
+                key={option.label}
+                type="button"
+                disabled={disabled}
+                onClick={() => onOptionSelect?.(option)}
+                className="flex min-h-12 items-center gap-2 rounded-xl border border-[#ffb5c8] bg-[#fff7f9] px-3 py-2 text-left text-sm font-medium text-[#333] transition hover:border-[#ff4e7d] hover:bg-[#fff0f4] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ff4e7d] text-xs font-bold text-white">{option.label}</span>
+                <span>{option.text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Suggestions */}
-      {!voiceModeOn && (
+      {!voiceModeOn && gameOptions.length === 0 && (
         <div className="px-3 pt-2 pb-2">
           <div
             className="flex gap-2 overflow-x-auto scrollbar-hide touch-pan-x"
@@ -359,7 +358,7 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget }) {
       )}
 
       {/* Input row */}
-      {!voiceModeOn && (
+      {!voiceModeOn && gameOptions.length === 0 && (
         <div className="flex items-center border-t border-[#eee] p-[10px]">
           <input
             type="text"

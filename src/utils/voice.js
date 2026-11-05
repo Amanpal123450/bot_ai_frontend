@@ -402,7 +402,7 @@ export function chatWithVoice({
         gotAnswer = true;
         clearTimeout(timeoutId);
         resolveAnswer({
-          data: { answer: evt.answer, gameState: evt.gameState, image: evt.image },
+          data: { answer: evt.answer, gameState: evt.gameState, image: evt.image, options: evt.options },
           playback,
         });
       } 

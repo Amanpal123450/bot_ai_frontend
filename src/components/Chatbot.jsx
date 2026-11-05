@@ -16,10 +16,12 @@ function Chatbot({ onSpeakingChange, onTypingChange, onThinkingChange, inputTarg
   const reqRef = useRef(0);
   const [gameState, setGameState] = useState({});
   const [loading, setLoading] = useState(false);
+  const [gameOptions, setGameOptions] = useState([]);
   const HISTORY_LIMIT = 8;
 
   const handleSend = async (userText, voiceMode = false, onStatusChange) => {
     const myReq = ++reqRef.current;
+    setGameOptions([]);
     const stopThinking = () => {
       if (reqRef.current === myReq) onThinkingChange?.(false);
     };
@@ -52,7 +54,11 @@ function Chatbot({ onSpeakingChange, onTypingChange, onThinkingChange, inputTarg
       ]);
       setLoading(false);
 
-      playback.then(stopThinking);  
+      playback.then(() => {
+        stopThinking();
+        // Choices should never cover the character while Kikoo is speaking.
+        if (reqRef.current === myReq) setGameOptions(data.options || []);
+      });
       if (voiceMode) await playback;
     } catch (err) {
       stopThinking();            
@@ -66,6 +72,11 @@ function Chatbot({ onSpeakingChange, onTypingChange, onThinkingChange, inputTarg
       setMessages((prev) => [...prev, { id: genId(), sender: "bot", text: message }]);
       setLoading(false);
     }
+  };
+
+  const handleGameExit = () => {
+    setGameOptions([]);
+    setGameState((previous) => ({ ...previous, mode: null, options: [] }));
   };
 
   return (
@@ -93,7 +104,15 @@ function Chatbot({ onSpeakingChange, onTypingChange, onThinkingChange, inputTarg
         {/* Tap "Talk to Kikoo" and start speaking 🎤 */}
       </div>
 
-      <ChatInput onSend={handleSend} disabled={loading} onTypingChange={onTypingChange} portalTarget={inputTarget} />
+      <ChatInput
+        onSend={handleSend}
+        disabled={loading}
+        onTypingChange={onTypingChange}
+        portalTarget={inputTarget}
+        gameOptions={gameOptions}
+        onOptionSelect={(option) => handleSend(`${option.label}) ${option.text}`)}
+        onGameExit={handleGameExit}
+      />
     </div>
   );
 }

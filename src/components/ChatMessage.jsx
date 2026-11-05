@@ -24,7 +24,7 @@ function ChatMessage({ sender, text, onSend, image, onSpeakingChange }) {
   const formattedText = String(text || "")
     .replace(/\\n/g, "\n")
     .replace(/\r\n/g, "\n")
-    .replace(/\s+(?=[ABC]\)\s)/gi, "\n");
+    .replace(/\s+(?=[ABCD]\)\s)/gi, "\n");
 
   const parts = formattedText.split("\n");
 
@@ -59,7 +59,7 @@ function ChatMessage({ sender, text, onSend, image, onSpeakingChange }) {
                 return <div key={index} className="h-[6px]" />;
               }
 
-              const optionMatch = trimmedLine.match(/^([ABC])[\).]\s*(.+)$/i);
+              const optionMatch = trimmedLine.match(/^([ABCD])[\).]\s*(.+)$/i);
 
               if (optionMatch) {
                 const option = optionMatch[1].toUpperCase();
