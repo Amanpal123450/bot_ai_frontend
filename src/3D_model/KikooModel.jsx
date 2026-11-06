@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
@@ -20,12 +20,69 @@ const CLIP_PATTERNS = {
   intro: /hayy/i, // page reload par -> hayy(2)
   jump: /^jump$/i, // body par click -> jump
   headClick: /head[\s_-]?click/i, // head par click -> headClick
-  eye: /^eye\.001$/i, // har 6 sec -> Blender ki nayi eye.001 clip
+  eye: /^eye/i, // har 6 sec -> eye
   talk: /toking/i, // bot bolte waqt -> toking
   typing: /^typing$/i,
   thinking: /thi(n)?king/i,
 };
 
+// Palak (eyelid) ke mesh ka naam: eye_up, eye_down, eye_up_1, Eye_Upper, eyelid...
+const LID_RE = /^(left|right)[_\s.-]?(up|uper|upper|down|lower)$|^eye[_\s.-]?(up|down|upper|lower)|eyelid/i;
+
+// Jin actions mein blink chahiye
+const BLINK_ACTIONS = CLIP_PATTERNS;
+
+const BLINK_SMOOTH = 25;
+const LID_GAIN = 1;
+
+// 1 = purani speed, 2.5 = lagbhag 2.5 guna slow
+const BLINK_SLOWDOWN = 2.5;
+
+// eye blink ki shape: [time, closure]
+const BLINK_SHAPE = [
+  [0, 0],
+  [0.05, 0],
+  [0.13, 1],
+  [0.19, 1],
+  [0.33, 0],
+  [0.46, 0],
+].map(([t, v]) => [t * BLINK_SLOWDOWN, v]);
+const BLINK_DURATION = 0.46 * BLINK_SLOWDOWN;
+
+function sampleCurve(curve, t) {
+  if (!curve || !curve.length) return 0;
+  if (t <= curve[0][0]) return curve[0][1];
+  for (let i = 0; i < curve.length - 1; i++) {
+    const [t0, v0] = curve[i];
+    const [t1, v1] = curve[i + 1];
+    if (t >= t0 && t <= t1) {
+      const k = t1 > t0 ? (t - t0) / (t1 - t0) : 1;
+      return v0 + (v1 - v0) * k;
+    }
+  }
+  return curve[curve.length - 1][1];
+}
+
+function buildBlinkCurve(animations, re) {
+  const clip = animations.find((a) => re.test(a.name.trim()));
+  const tr = clip?.tracks.find((t) => /Bone001\.quaternion$/i.test(t.name));
+  if (!tr) return null;
+
+  const q = new THREE.Quaternion();
+  const q0 = new THREE.Quaternion().fromArray(tr.values, 0);
+  const pts = Array.from(tr.times).map((time, i) => {
+    q.fromArray(tr.values, i * 4);
+    return [time, q.angleTo(q0)];
+  });
+  const max = Math.max(...pts.map((p) => p[1]));
+  if (!max || max < 1e-3) return null;
+  return pts.map(([time, a]) => [time, Math.min(a / max, 1)]);
+}
+
+const _pq = new THREE.Quaternion();
+const _off = new THREE.Quaternion();
+const _eul = new THREE.Euler();
+const _lid = new THREE.Quaternion();
 const _box = new THREE.Box3();
 
 function isMoving(t, eps = 1e-4) {
@@ -79,6 +136,22 @@ function Model({ speaking, typing, thinking }) {
   const busyRef = useRef(true);
   const oneShotRef = useRef(false);
   const actionsRef = useRef({});
+  const eyesRef = useRef([]);
+  const lidsRef = useRef([]);
+  const blinkRef = useRef(0);
+  const blinkStartRef = useRef(-1);
+
+  const blinkCurves = useMemo(() => {
+    const curves = {};
+    for (const [name, re] of Object.entries(BLINK_ACTIONS)) {
+      curves[name] = buildBlinkCurve(animations, re);
+    }
+    console.log(
+      "Blink curves ->",
+      Object.fromEntries(Object.entries(curves).map(([k, v]) => [k, v?.length ?? null]))
+    );
+    return curves;
+  }, [animations]);
 
   // Paws ko haath ki bone se jodo
   useLayoutEffect(() => {
@@ -145,6 +218,57 @@ function Model({ speaking, typing, thinking }) {
     });
   }, [scene]);
 
+  // Palak dhoondo
+  useLayoutEffect(() => {
+    const lids = [];
+    scene.traverse((o) => {
+      if (LID_RE.test(o.name) && o.isMesh && o.parent) {
+        if (!o.userData.lidBase) o.userData.lidBase = o.quaternion.clone();
+        o.quaternion.copy(o.userData.lidBase);
+        lids.push(o);
+      }
+    });
+    scene.updateMatrixWorld(true);
+
+    const wq = new THREE.Quaternion();
+    const pq0 = new THREE.Quaternion();
+    const list = lids.map((o) => {
+      const P = o.geometry.attributes.position;
+      const pole = new THREE.Vector3();
+      const v = new THREE.Vector3();
+      for (let i = 0; i < P.count; i++) pole.add(v.fromBufferAttribute(P, i));
+      pole.normalize();
+
+      o.getWorldQuaternion(wq);
+      const worldPole = pole.clone().applyQuaternion(wq);
+
+      const target = new THREE.Vector3(0, worldPole.y >= 0 ? 1 : -1, 0);
+      const qWorld = new THREE.Quaternion().setFromUnitVectors(worldPole, target);
+
+      o.parent.getWorldQuaternion(pq0);
+      const close = pq0.clone().invert().multiply(qWorld).multiply(pq0);
+
+      return { node: o, base: o.userData.lidBase, close };
+    });
+    lidsRef.current = list;
+
+    // ---- DEBUG: ek hi line, copy karna aasaan ----
+    const eyeNames = [];
+    const meshNames = [];
+    const morphs = {};
+    scene.traverse((o) => {
+      if (/eye|lid|blink/i.test(o.name)) eyeNames.push(`${o.name}[${o.type}]`);
+      if (o.isMesh) {
+        meshNames.push(o.name);
+        if (o.morphTargetDictionary) morphs[o.name] = Object.keys(o.morphTargetDictionary);
+      }
+    });
+    console.log(
+      "DEBUG-EYE",
+      JSON.stringify({ lidsMile: list.map((l) => l.node.name), eyeNames, meshNames, morphs })
+    );
+  }, [scene]);
+
   const clips = useMemo(() => {
     const result = [];
     for (const [name, re] of Object.entries(CLIP_PATTERNS)) {
@@ -154,12 +278,7 @@ function Model({ speaking, typing, thinking }) {
         continue;
       }
 
-      // Blender clip "eye.001" ko runtime ki logical key "eye" do;
-      // tracks/keyframes bilkul original hi rehte hain.
-      let c =
-        name === "eye"
-          ? new THREE.AnimationClip(name, src.duration, src.tracks)
-          : keepPoseTracks(src, name);
+      let c = keepPoseTracks(src, name);
       if (c && name === "talk") c = withoutArmTracks(c, name);
       if (!c) console.warn(`⚠️ "${name}" mein koi moving track nahi hai`);
       else result.push(c);
@@ -171,9 +290,19 @@ function Model({ speaking, typing, thinking }) {
     return result;
   }, [animations]);
 
-  // GLB ke bone tracks ko rendered scene par seedha bind karo.
-  const { actions, mixer } = useAnimations(clips, scene);
+  const { actions, mixer } = useAnimations(clips, group);
   actionsRef.current = actions;
+
+  useEffect(() => {
+    const list = [];
+    scene.traverse((o) => {
+      if (/^eye_in\d*$/i.test(o.name) && o.parent) {
+        if (!o.userData.baseQ) o.userData.baseQ = o.quaternion.clone();
+        list.push(o);
+      }
+    });
+    eyesRef.current = list;
+  }, [scene]);
 
   // Ek baar chalne wala action (jump / headClick / eye)
   const playOneShot = useCallback((name, fade = 0.3) => {
@@ -187,18 +316,18 @@ function Model({ speaking, typing, thinking }) {
     act.reset();
     act.setLoop(THREE.LoopOnce, 1);
     act.clampWhenFinished = true;
-    act.setEffectiveTimeScale(1);
     if (fade > 0) act.fadeIn(fade);
     else act.setEffectiveWeight(1); // fadeOut ke baad weight 0 reh jaata hai, wapas 1 karo
     act.play();
   }, []);
 
-  // Har 6 sec mein Blender wali original eye clip chalao (sirf jab model free ho).
+  // Har 6 sec mein eye animation + blink (sirf jab model free ho)
   const startEyeTimer = useCallback(() => {
     clearInterval(eyeTimerRef.current);
     eyeTimerRef.current = setInterval(() => {
       if (busyRef.current || oneShotRef.current) return;
-      console.log("👁 eye animation");
+      console.log("👁 eye blink, palak mile:", lidsRef.current.length);
+      blinkStartRef.current = performance.now() / 1000;
       playOneShot("eye", 0);
     }, EYE_INTERVAL_MS);
   }, [playOneShot]);
@@ -243,6 +372,44 @@ function Model({ speaking, typing, thinking }) {
     },
     [playOneShot, isHeadHit]
   );
+
+  useFrame((_, delta) => {
+    let tb = 0;
+    for (const name of Object.keys(BLINK_ACTIONS)) {
+      if (name === "eye") continue; // eye ka blink neeche time se chalta hai
+      const a = actionsRef.current[name];
+      const curve = blinkCurves[name];
+      if (a && curve && a.isRunning()) {
+        tb = Math.max(tb, sampleCurve(curve, a.time) * a.getEffectiveWeight());
+      }
+    }
+
+    // eye blink: clip par depend nahi, seedha time se
+    if (blinkStartRef.current >= 0) {
+      const t = performance.now() / 1000 - blinkStartRef.current;
+      if (t > BLINK_DURATION) blinkStartRef.current = -1;
+      else tb = Math.max(tb, sampleCurve(BLINK_SHAPE, t));
+    }
+
+    blinkRef.current += (tb - blinkRef.current) * (1 - Math.exp(-BLINK_SMOOTH * delta));
+
+    for (const node of eyesRef.current) {
+      node.parent.getWorldQuaternion(_pq);
+      _off.setFromEuler(_eul.set(0, 0, 0, "YXZ"));
+      node.quaternion
+        .copy(_pq)
+        .invert()
+        .multiply(_off)
+        .multiply(_pq)
+        .multiply(node.userData.baseQ);
+    }
+
+    const c = THREE.MathUtils.clamp(blinkRef.current * LID_GAIN, 0, 1);
+    for (const lid of lidsRef.current) {
+      _lid.identity().slerp(lid.close, c);
+      lid.node.quaternion.copy(_lid).multiply(lid.base);
+    }
+  });
 
   // intro / one-shot khatam hone par
   useEffect(() => {
@@ -324,6 +491,7 @@ function Model({ speaking, typing, thinking }) {
       actionsRef.current.intro?.fadeOut(0.3);
       ONE_SHOT_NAMES.forEach((n) => actionsRef.current[n]?.fadeOut(0.3));
       oneShotRef.current = false;
+      blinkStartRef.current = -1;
       if (!introDone) setIntroDone(true);
     }
 
