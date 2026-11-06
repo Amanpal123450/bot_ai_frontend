@@ -11,19 +11,19 @@ import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
 
-const MODEL_URL = "/models/14.glb";
+const MODEL_URL = "/models/15.glb";
 const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
-const HEAD_TOP_FRACTION = 0.55; // model ke upar ke 55% hisse par click = head click
+const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
 const ONE_SHOT_NAMES = ["jump", "headClick", "eye"];
 const BASE_POSE_RE = /noramal\.001/i; // sirf base pose ke liye, idle mein nahi chalta
 const CLIP_PATTERNS = {
-  intro: /hayy/i, // page reload par -> hayy(2)
+  intro: /^hayy/i, // page reload par -> hayy(2)
   jump: /^jump$/i, // body par click -> jump
-  headClick: /head[\s_-]?click/i, // head par click -> headClick
+  headClick: /^head[\s_-]?click$/i, // head par click -> headClick (headClick.001 nahi)
   eye: /^eye/i, // har 6 sec -> eye
-  talk: /toking/i, // bot bolte waqt -> toking
+  talk: /^toking$/i, // bot bolte waqt -> toking
   typing: /^typing$/i,
-  thinking: /thi(n)?king/i,
+  thinking: /^thi(n)?king$/i, // API call / response aate waqt -> thiking
 };
 
 // Palak (eyelid) ke mesh ka naam: eye_up, eye_down, eye_up_1, Eye_Upper, eyelid...
@@ -133,6 +133,7 @@ function Model({ speaking, typing, thinking }) {
 
   const [introDone, setIntroDone] = useState(false);
   const eyeTimerRef = useRef(null);
+  const oneShotTimerRef = useRef(null); // safety: one-shot flag atak na jaye
   const busyRef = useRef(true);
   const oneShotRef = useRef(false);
   const actionsRef = useRef({});
@@ -313,6 +314,13 @@ function Model({ speaking, typing, thinking }) {
     }
     console.log(`▶️ play: ${name} (${act.getClip().duration.toFixed(2)}s)`);
     oneShotRef.current = true;
+
+    // safety: agar "finished" event na aaye to bhi flag clip khatam hone ke baad chhoot jaye
+    clearTimeout(oneShotTimerRef.current);
+    oneShotTimerRef.current = setTimeout(() => {
+      oneShotRef.current = false;
+    }, (act.getClip().duration + 0.6) * 1000);
+
     act.reset();
     act.setLoop(THREE.LoopOnce, 1);
     act.clampWhenFinished = true;
@@ -464,7 +472,7 @@ function Model({ speaking, typing, thinking }) {
     }
   }, [typing, actions]);
 
-  // 3b) Thinking
+  // 3b) Thinking (API call se lekar voice shuru hone tak)
   useEffect(() => {
     const t = actions.thinking;
     if (!t) return;
@@ -495,7 +503,10 @@ function Model({ speaking, typing, thinking }) {
       if (!introDone) setIntroDone(true);
     }
 
-    return () => clearInterval(eyeTimerRef.current);
+    return () => {
+      clearInterval(eyeTimerRef.current);
+      clearTimeout(oneShotTimerRef.current);
+    };
   }, [speaking, typing, thinking, introDone, startEyeTimer]);
 
   return (
