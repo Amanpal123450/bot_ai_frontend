@@ -12,7 +12,7 @@ import { OrbitControls, useGLTF, useAnimations, Html } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
 
-const MODEL_URL = "/models/16.glb";
+const MODEL_URL = "/models/17.glb";
 const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
 const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
 const ONE_SHOT_NAMES = ["jump", "headClick", "eye"];
