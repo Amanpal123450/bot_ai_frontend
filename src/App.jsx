@@ -31,7 +31,7 @@ function App() {
     const blades = useMemo(() => {
         const r = rng(7);
         return Array.from({ length: 70 }, (_, i) => ({
-          left: `${(i / 70) * 100 + r() * 1.2 - 0.6}%`,
+       left: `${(i / 70) * 100 + r() * 1.2 - 0.6}%`,
           height: 10 + r() * 16,
           width: 5 + r() * 5,
           delay: -r() * 3,

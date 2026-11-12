@@ -1,4 +1,5 @@
 import React, {
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -7,11 +8,11 @@ import React, {
   useState,
 } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, useGLTF, useAnimations } from "@react-three/drei";
+import { OrbitControls, useGLTF, useAnimations, Html } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
 
-const MODEL_URL = "/models/15.glb";
+const MODEL_URL = "/models/16.glb";
 const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
 const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
 const ONE_SHOT_NAMES = ["jump", "headClick", "eye"];
@@ -530,9 +531,21 @@ export default function KikooModel({ speaking = false, typing = false, thinking 
       <Canvas camera={{ position: [0, -0.7, 4.3], fov: 40, near: 0.1, far: 50 }}>
         <ambientLight intensity={2} />
         <directionalLight position={[15, 15, 15]} intensity={3} />
-        <Model speaking={speaking} typing={typing} thinking={thinking} />
+        <Suspense 
+          fallback={
+            <Html center>
+              <div style={{ color: '#ff4e7d', fontWeight: 'bold', width: 'max-content' }}>
+                Loading Kikoo...
+              </div>
+            </Html>
+          }
+        >
+          <Model speaking={speaking} typing={typing} thinking={thinking} />
+        </Suspense>
+
         <OrbitControls target={[0, -0.7, 0]} enableZoom={false} enablePan={false} enableRotate={false} />
       </Canvas>
     </div>
   );
 }
+useGLTF.preload(MODEL_URL);

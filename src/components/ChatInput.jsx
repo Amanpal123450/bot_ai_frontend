@@ -2,6 +2,7 @@ import { AudioLines, Mic, MicOff, Send, X } from "lucide-react";
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { stopVoice } from "../utils/voice";
+import { motion } from "motion/react";
 
 const MAX_RETRY_ATTEMPTS = 3;
 const RESTART_DELAY = 400; // 🔑 mic restart se pehle chhota gap — InvalidStateError avoid karta hai
@@ -336,23 +337,65 @@ function ChatInput({ onSend, disabled, onTypingChange, portalTarget, gameOptions
               touchAction: "pan-x",
             }}
           >
-            {suggestions.map((item) => (
-              <button
-                key={item.message}
-                type="button"
-                disabled={disabled}
-                onClick={() => onSend?.(item.message)}
-                className="
-  shrink-0 rounded-full border border-[#ff4e7d] bg-white
-  px-3 py-1.5 text-[12px] sm:px-2 sm:py-1 sm:text-[10px]
-  font-medium text-[#ff4e7d]
-  hover:bg-[#fff0f4] transition cursor-pointer
-  disabled:opacity-50 disabled:cursor-not-allowed
-"
-              >
-                {item.label}
-              </button>
-            ))}
+       {suggestions.map((item, index) => (
+  <motion.button
+    key={item.message}
+    type="button"
+    disabled={disabled}
+    onClick={() => onSend?.(item.message)}
+
+    initial={{
+      opacity: 0,
+      y: 15,
+      scale: 0.9,
+    }}
+
+    animate={{
+      opacity: 1,
+      y: 0,
+      scale: 1,
+    }}
+
+    // whileHover={{
+    //   scale: 1.06,
+    //   y: -4,
+    //   boxShadow: "0px 6px 18px rgba(255, 78, 125, 0.20)",
+    // }}
+
+    whileTap={{
+      scale: 0.94,
+    }}
+
+    transition={{
+      type: "spring",
+      stiffness: 350,
+      damping: 18,
+      delay: index * 0.08,
+    }}
+
+    className="
+      relative shrink-0 overflow-hidden
+      rounded-full
+      border border-[#ff4e7d]/30
+      bg-gradient-to-r from-white to-[#fff0f4]
+      px-4 py-2
+      text-[12px] sm:px-3 sm:py-1.5 sm:text-[11px]
+      font-semibold
+      text-[#e94370]
+      shadow-sm
+      transition-colors duration-200
+      hover:border-[#ff4e7d]
+      hover:from-[#fff0f4]
+      hover:to-[#ffe0e9]
+      active:scale-95
+      cursor-pointer
+      disabled:pointer-events-none
+      disabled:opacity-40
+    "
+  >
+    {item.label}
+  </motion.button>
+))}
           </div>
         </div>
       )}
