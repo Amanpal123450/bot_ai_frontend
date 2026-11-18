@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { playWelcome } from "./utils/voice";
 import Chatbot from "./components/Chatbot";
 import KikooModel from "./3D_model/KikooModel";
 
