@@ -7,15 +7,17 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations, Html } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
+import { useRainCycle } from "./useRainCycle"; // NEW: Plane.001 + barish + run (har 20 sec)
 
-const MODEL_URL = "/models/17.glb";
+const MODEL_URL = "/models/4_backup.glb"; // GLB ko public/models/ mein rakho
 const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
+const HEAD_NECK_MARGIN = 0; // click neck bone ke is se upar = head. Gardan par click head lage to -0.1 karo
 const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
-const ONE_SHOT_NAMES = ["jump", "headClick", "eye"];
+const ONE_SHOT_NAMES = ["jump", "headClick", "eye", "run"];
 const BASE_POSE_RE = /noramal\.001/i; // sirf base pose ke liye, idle mein nahi chalta
 const CLIP_PATTERNS = {
   intro: /^hayy/i, // page reload par -> hayy(2)
@@ -25,13 +27,28 @@ const CLIP_PATTERNS = {
   talk: /^toking$/i, // bot bolte waqt -> toking
   typing: /^typing$/i,
   thinking: /^thi(n)?king$/i, // API call / response aate waqt -> thiking
+  run: /^run$/i, // Plane.001 ke 4 sec baad -> run (run.001 nahi)
 };
+
+// ---------- HEAD LOOK-AT (UI mein kahin bhi click -> head wahan ghume) ----------
+// Tumhari GLB ke hisaab se: Bone_022 = head (eyes/palak isi ke bachche hain), Bone_004 = neck
+const HEAD_BONE_RE = /^Bone_022$/;
+const NECK_BONE_RE = /^Bone_004$/;
+const LOOK_MAX_YAW = 0.75; // radians, left-right (~43°)
+const LOOK_MAX_PITCH = 0.5; // radians, up-down (~28°)
+const LOOK_RADIUS_PX = 300; // head se itni door click par full turn
+const LOOK_HOLD_MS = 2500; // itni der baad head wapas center
+const LOOK_SMOOTH = 8; // zyada = tez turn
+const NECK_SHARE_YAW = 0.35; // yaw ka itna hissa neck lega, baaki head
+const NECK_SHARE_PITCH = 0.3; // pitch ka itna hissa neck lega, baaki head
+const LOOK_YAW_SIGN = 1; // left-right ulta ghume to -1 kar do
+const LOOK_PITCH_SIGN = 1; // up-down ulta ghume to -1 kar do
 
 // Palak (eyelid) ke mesh ka naam: eye_up, eye_down, eye_up_1, Eye_Upper, eyelid...
 const LID_RE = /^(left|right)[_\s.-]?(up|uper|upper|down|lower)$|^eye[_\s.-]?(up|down|upper|lower)|eyelid/i;
 
-// Jin actions mein blink chahiye
-const BLINK_ACTIONS = CLIP_PATTERNS;
+// Jin actions mein blink chahiye (run mein blink nahi chahiye)
+const { run: _runNoBlink, ...BLINK_ACTIONS } = CLIP_PATTERNS;
 
 const BLINK_SMOOTH = 25;
 const LID_GAIN = 1;
@@ -85,6 +102,41 @@ const _off = new THREE.Quaternion();
 const _eul = new THREE.Euler();
 const _lid = new THREE.Quaternion();
 const _box = new THREE.Box3();
+const _hp = new THREE.Vector3();
+const _np = new THREE.Vector3();
+
+// Bone par world-space yaw/pitch offset lagao (animation ke upar).
+// rec = { bone, lastOut, lastBase, has }
+// Agar animation is frame mein bone ko overwrite kare to naya base le leta hai,
+// warna purana base use karta hai -> offset kabhi jama (accumulate) nahi hota.
+function applyLookOffset(rec, yaw, pitch) {
+  const bone = rec.bone;
+  if (!bone || !bone.parent) return;
+
+  if (!(rec.has && bone.quaternion.equals(rec.lastOut))) {
+    rec.lastBase.copy(bone.quaternion);
+  }
+  rec.has = true;
+
+  bone.parent.getWorldQuaternion(_pq);
+  _off.setFromEuler(_eul.set(pitch, yaw, 0, "YXZ"));
+  bone.quaternion
+    .copy(_pq)
+    .invert()
+    .multiply(_off)
+    .multiply(_pq)
+    .multiply(rec.lastBase);
+  rec.lastOut.copy(bone.quaternion);
+}
+
+function makeBoneRec() {
+  return {
+    bone: null,
+    lastOut: new THREE.Quaternion(),
+    lastBase: new THREE.Quaternion(),
+    has: false,
+  };
+}
 
 function isMoving(t, eps = 1e-4) {
   const size = t.getValueSize();
@@ -119,6 +171,7 @@ function withoutArmTracks(clip, name) {
 function Model({ speaking, typing, thinking }) {
   const group = useRef();
   const { scene, animations } = useGLTF(MODEL_URL);
+  const { camera, gl } = useThree();
 
   useEffect(() => {
     console.log("GLB FILE:", MODEL_URL);
@@ -142,6 +195,13 @@ function Model({ speaking, typing, thinking }) {
   const lidsRef = useRef([]);
   const blinkRef = useRef(0);
   const blinkStartRef = useRef(-1);
+
+  // head look-at refs
+  const headRecRef = useRef(makeBoneRec());
+  const neckRecRef = useRef(makeBoneRec());
+  const lookTargetRef = useRef({ yaw: 0, pitch: 0 });
+  const lookCurrentRef = useRef({ yaw: 0, pitch: 0 });
+  const lookTimerRef = useRef(null);
 
   const blinkCurves = useMemo(() => {
     const curves = {};
@@ -306,7 +366,75 @@ function Model({ speaking, typing, thinking }) {
     eyesRef.current = list;
   }, [scene]);
 
-  // Ek baar chalne wala action (jump / headClick / eye)
+  // Head + neck bone dhoondo
+  useEffect(() => {
+    const bones = [];
+    let head = null;
+    let neck = null;
+    scene.traverse((o) => {
+      if (!o.isBone) return;
+      bones.push(o.name);
+      if (!head && HEAD_BONE_RE.test(o.name)) head = o;
+      if (!neck && NECK_BONE_RE.test(o.name)) neck = o;
+    });
+    headRecRef.current = Object.assign(makeBoneRec(), { bone: head });
+    neckRecRef.current = Object.assign(makeBoneRec(), { bone: neck });
+    console.log("HEAD BONE:", head?.name ?? "NAHI MILI", "| NECK BONE:", neck?.name ?? "NAHI MILI");
+    if (!head) console.log("ALL BONES:", bones.join(", "));
+  }, [scene]);
+
+  // UI mein kahin bhi click -> head us taraf ghume
+  // Box ke andar click -> head us taraf ghume
+  useEffect(() => {
+    const onClick = (e) => {
+      // sirf data-look-area wale box ke andar ka click
+      const area = document.querySelector("[data-look-area]");
+      if (area && !area.contains(e.target)) return;
+
+      const canvas = gl.domElement;
+      const r = canvas.getBoundingClientRect();
+
+      // head ki asli screen position (bone ki world position project karke)
+      let cx = r.left + r.width / 2;
+      let cy = r.top + r.height * 0.35;
+      const headBone = headRecRef.current.bone;
+      if (headBone) {
+        headBone.getWorldPosition(_hp);
+        _hp.project(camera);
+        cx = r.left + (_hp.x * 0.5 + 0.5) * r.width;
+        cy = r.top + (-_hp.y * 0.5 + 0.5) * r.height;
+      }
+
+      const nx = THREE.MathUtils.clamp((e.clientX - cx) / LOOK_RADIUS_PX, -1, 1);
+      const ny = THREE.MathUtils.clamp((e.clientY - cy) / LOOK_RADIUS_PX, -1, 1);
+
+      lookTargetRef.current.yaw = nx * LOOK_MAX_YAW * LOOK_YAW_SIGN;
+      lookTargetRef.current.pitch = ny * LOOK_MAX_PITCH * LOOK_PITCH_SIGN;
+      console.log(
+        "LOOK click",
+        JSON.stringify({
+          yaw: +lookTargetRef.current.yaw.toFixed(2),
+          pitch: +lookTargetRef.current.pitch.toFixed(2),
+          headBone: headRecRef.current.bone?.name ?? null,
+        })
+      );
+
+      clearTimeout(lookTimerRef.current);
+      lookTimerRef.current = setTimeout(() => {
+        lookTargetRef.current.yaw = 0;
+        lookTargetRef.current.pitch = 0;
+      }, LOOK_HOLD_MS);
+    };
+
+    // capture phase: koi button/input stopPropagation kare tab bhi chalega
+    window.addEventListener("pointerdown", onClick, true);
+    return () => {
+      window.removeEventListener("pointerdown", onClick, true);
+      clearTimeout(lookTimerRef.current);
+    };
+  }, [camera, gl]);
+
+  // Ek baar chalne wala action (jump / headClick / eye / run)
   const playOneShot = useCallback((name, fade = 0.3) => {
     const act = actionsRef.current[name];
     if (!act) {
@@ -330,6 +458,9 @@ function Model({ speaking, typing, thinking }) {
     act.play();
   }, []);
 
+  // NEW: Plane.001 (badal) -> barish -> 4 sec baad "run", har 20 sec mein
+  useRainCycle({ scene, busyRef, playOneShot });
+
   // Har 6 sec mein eye animation + blink (sirf jab model free ho)
   const startEyeTimer = useCallback(() => {
     clearInterval(eyeTimerRef.current);
@@ -351,16 +482,40 @@ function Model({ speaking, typing, thinking }) {
         o = o.parent;
       }
 
-      _box.setFromObject(scene);
+      // sirf character ka box (Plane.001 / boond / barish ko ginti se bahar rakho)
+      _box.makeEmpty();
+      scene.children.forEach((ch) => {
+        if (!ch.userData.ignoreBounds) _box.expandByObject(ch);
+      });
       const rel = (e.point.y - _box.min.y) / (_box.max.y - _box.min.y);
       const byName = chain.some((n) => /head|face/i.test(n));
       const byHeight = rel > 1 - HEAD_TOP_FRACTION;
 
+      // Sabse pakka tareeka: click neck bone ke upar hai to head click
+      let byBone = false;
+      let neckY = null;
+      const neckBone = neckRecRef.current.bone;
+      if (neckBone) {
+        neckBone.getWorldPosition(_np);
+        neckY = _np.y;
+        byBone = e.point.y > neckY + HEAD_NECK_MARGIN;
+      }
+      const headHit = neckBone ? byBone || byName : byName || byHeight;
+
       console.log(
         "DEBUG-CLICK",
-        JSON.stringify({ chain: chain.join(" > "), height: +rel.toFixed(2), byName, byHeight })
+        JSON.stringify({
+          chain: chain.join(" > "),
+          height: +rel.toFixed(2),
+          clickY: +e.point.y.toFixed(2),
+          neckY: neckY === null ? null : +neckY.toFixed(2),
+          byName,
+          byHeight,
+          byBone,
+          headHit,
+        })
       );
-      return byName || byHeight;
+      return headHit;
     },
     [scene]
   );
@@ -418,6 +573,21 @@ function Model({ speaking, typing, thinking }) {
       _lid.identity().slerp(lid.close, c);
       lid.node.quaternion.copy(_lid).multiply(lid.base);
     }
+
+    // Head look-at: smooth current -> target, phir neck + head par offset
+    const cur = lookCurrentRef.current;
+    const tgt = lookTargetRef.current;
+    const k = 1 - Math.exp(-LOOK_SMOOTH * delta);
+    cur.yaw += (tgt.yaw - cur.yaw) * k;
+    cur.pitch += (tgt.pitch - cur.pitch) * k;
+
+    // neck pehle, phir head (head ka parent-world neck ke baad nikalta hai)
+    applyLookOffset(neckRecRef.current, cur.yaw * NECK_SHARE_YAW, cur.pitch * NECK_SHARE_PITCH);
+    applyLookOffset(
+      headRecRef.current,
+      cur.yaw * (1 - NECK_SHARE_YAW),
+      cur.pitch * (1 - NECK_SHARE_PITCH)
+    );
   });
 
   // intro / one-shot khatam hone par
@@ -531,10 +701,10 @@ export default function KikooModel({ speaking = false, typing = false, thinking 
       <Canvas camera={{ position: [0, -0.7, 4.3], fov: 40, near: 0.1, far: 50 }}>
         <ambientLight intensity={2} />
         <directionalLight position={[15, 15, 15]} intensity={3} />
-        <Suspense 
+        <Suspense
           fallback={
             <Html center>
-              <div style={{ color: '#ff4e7d', fontWeight: 'bold', width: 'max-content' }}>
+              <div style={{ color: "#ff4e7d", fontWeight: "bold", width: "max-content" }}>
                 Loading Kikoo...
               </div>
             </Html>

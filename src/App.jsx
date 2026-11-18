@@ -50,6 +50,7 @@ function App() {
       >
         {/* Model area */}
         <div
+        data-look-area
           className="
             relative min-h-0 flex-1 overflow-hidden
             sm:h-[520px] sm:flex-none sm:rounded-t-2xl md:h-[320px]
