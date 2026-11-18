@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { playWelcome } from "./utils/voice";
 import Chatbot from "./components/Chatbot";
 import KikooModel from "./3D_model/KikooModel";
 
@@ -25,6 +26,12 @@ function App() {
   const [inputTarget, setInputTarget] = useState(null);
   const [thinking, setThinking] = useState(false);
 
+  useEffect(() => {
+    let stop;
+    const timer = setTimeout(() => { stop = playWelcome(setSpeaking); }, 0);
+    return () => { clearTimeout(timer); stop?.(); };
+  }, []);
+
   const blades = useMemo(() => {
     const r = rng(7);
     return Array.from({ length: 70 }, (_, i) => ({
@@ -38,10 +45,6 @@ function App() {
 
   return (
     <div className="font-sans">
-      {/*
-        MOBILE (<640px): poori screen, model upar (flex-1), input neeche
-        DESKTOP (sm+): pehle jaisa chhota widget, bottom-right
-      */}
       <div
         className="
           fixed inset-0 z-[1000] flex h-[100dvh] w-full flex-col bg-white
@@ -107,7 +110,7 @@ function App() {
           ))}
         </div>
 
-        {/* Suggestions + input yahan portal hote hain */}
+     
         <div
           ref={setInputTarget}
           className="
@@ -118,7 +121,6 @@ function App() {
         />
       </div>
 
-      {/* Hidden chatbot: sirf logic aur portal ke liye */}
       <Chatbot
         onSpeakingChange={setSpeaking}
         onTypingChange={setTyping}

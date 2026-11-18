@@ -11,53 +11,46 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useAnimations, Html } from "@react-three/drei";
 import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
-import { useRainCycle } from "./useRainCycle"; // NEW: Plane.001 + barish + run (har 20 sec)
+import { useRainCycle } from "./useRainCycle";
 
-// const MODEL_URL = "/models/4_backup.glb"; // GLB ko public/models/ mein rakho
-const MODEL_URL = "/models/kikoo-web.glb"
-const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
-const HEAD_NECK_MARGIN = 0; // click neck bone ke is se upar = head. Gardan par click head lage to -0.1 karo
-const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
+const MODEL_URL = "/models/kikoo-web.glb";
+const EYE_INTERVAL_MS = 6000;
+const HEAD_NECK_MARGIN = 0;
+const HEAD_TOP_FRACTION = 0.35;
 const ONE_SHOT_NAMES = ["jump", "headClick", "eye", "run"];
-const BASE_POSE_RE = /noramal\.001/i; // sirf base pose ke liye, idle mein nahi chalta
+const BASE_POSE_RE = /noramal\.001/i;
 const CLIP_PATTERNS = {
-  intro: /^hayy/i, // page reload par -> hayy(2)
-  jump: /^jump$/i, // body par click -> jump
-  headClick: /^head[\s_-]?click$/i, // head par click -> headClick (headClick.001 nahi)
-  eye: /^eye/i, // har 6 sec -> eye
-  talk: /^toking$/i, // bot bolte waqt -> toking
+  intro: /^hayy/i,
+  jump: /^jump$/i,
+  headClick: /^head[\s_-]?click$/i,
+  eye: /^eye/i,
+  talk: /^toking$/i,
   typing: /^typing$/i,
-  thinking: /^thi(n)?king$/i, // API call / response aate waqt -> thiking
-  run: /^run$/i, // Plane.001 ke 4 sec baad -> run (run.001 nahi)
+  thinking: /^thi(n)?king$/i,
+  run: /^run$/i,
 };
 
-// ---------- HEAD LOOK-AT (UI mein kahin bhi click -> head wahan ghume) ----------
-// Tumhari GLB ke hisaab se: Bone_022 = head (eyes/palak isi ke bachche hain), Bone_004 = neck
 const HEAD_BONE_RE = /^Bone_022$/;
 const NECK_BONE_RE = /^Bone_004$/;
-const LOOK_MAX_YAW = 0.75; // radians, left-right (~43°)
-const LOOK_MAX_PITCH = 0.5; // radians, up-down (~28°)
-const LOOK_RADIUS_PX = 300; // head se itni door click par full turn
-const LOOK_HOLD_MS = 2500; // itni der baad head wapas center
-const LOOK_SMOOTH = 8; // zyada = tez turn
-const NECK_SHARE_YAW = 0.35; // yaw ka itna hissa neck lega, baaki head
-const NECK_SHARE_PITCH = 0.3; // pitch ka itna hissa neck lega, baaki head
-const LOOK_YAW_SIGN = 1; // left-right ulta ghume to -1 kar do
-const LOOK_PITCH_SIGN = 1; // up-down ulta ghume to -1 kar do
+const LOOK_MAX_YAW = 0.75;
+const LOOK_MAX_PITCH = 0.5;
+const LOOK_RADIUS_PX = 300;
+const LOOK_HOLD_MS = 2500;
+const LOOK_SMOOTH = 8;
+const NECK_SHARE_YAW = 0.35;
+const NECK_SHARE_PITCH = 0.3;
+const LOOK_YAW_SIGN = 1;
+const LOOK_PITCH_SIGN = 1;
 
-// Palak (eyelid) ke mesh ka naam: eye_up, eye_down, eye_up_1, Eye_Upper, eyelid...
 const LID_RE = /^(left|right)[_\s.-]?(up|uper|upper|down|lower)$|^eye[_\s.-]?(up|down|upper|lower)|eyelid/i;
 
-// Jin actions mein blink chahiye (run mein blink nahi chahiye)
 const { run: _runNoBlink, ...BLINK_ACTIONS } = CLIP_PATTERNS;
 
 const BLINK_SMOOTH = 25;
 const LID_GAIN = 1;
 
-// 1 = purani speed, 2.5 = lagbhag 2.5 guna slow
 const BLINK_SLOWDOWN = 2.5;
 
-// eye blink ki shape: [time, closure]
 const BLINK_SHAPE = [
   [0, 0],
   [0.05, 0],
@@ -106,10 +99,6 @@ const _box = new THREE.Box3();
 const _hp = new THREE.Vector3();
 const _np = new THREE.Vector3();
 
-// Bone par world-space yaw/pitch offset lagao (animation ke upar).
-// rec = { bone, lastOut, lastBase, has }
-// Agar animation is frame mein bone ko overwrite kare to naya base le leta hai,
-// warna purana base use karta hai -> offset kabhi jama (accumulate) nahi hota.
 function applyLookOffset(rec, yaw, pitch) {
   const bone = rec.bone;
   if (!bone || !bone.parent) return;
@@ -174,21 +163,9 @@ function Model({ speaking, typing, thinking }) {
   const { scene, animations } = useGLTF(MODEL_URL);
   const { camera, gl } = useThree();
 
-  useEffect(() => {
-    console.log("GLB FILE:", MODEL_URL);
-    console.log("TOTAL GLB ANIMATIONS:", animations.length);
-    console.table(
-      animations.map((animation, index) => ({
-        Number: index + 1,
-        Name: animation.name,
-        Duration: animation.duration.toFixed(2) + " seconds",
-      }))
-    );
-  }, [animations]);
-
   const [introDone, setIntroDone] = useState(false);
   const eyeTimerRef = useRef(null);
-  const oneShotTimerRef = useRef(null); // safety: one-shot flag atak na jaye
+  const oneShotTimerRef = useRef(null);
   const busyRef = useRef(true);
   const oneShotRef = useRef(false);
   const actionsRef = useRef({});
@@ -197,7 +174,6 @@ function Model({ speaking, typing, thinking }) {
   const blinkRef = useRef(0);
   const blinkStartRef = useRef(-1);
 
-  // head look-at refs
   const headRecRef = useRef(makeBoneRec());
   const neckRecRef = useRef(makeBoneRec());
   const lookTargetRef = useRef({ yaw: 0, pitch: 0 });
@@ -209,14 +185,9 @@ function Model({ speaking, typing, thinking }) {
     for (const [name, re] of Object.entries(BLINK_ACTIONS)) {
       curves[name] = buildBlinkCurve(animations, re);
     }
-    console.log(
-      "Blink curves ->",
-      Object.fromEntries(Object.entries(curves).map(([k, v]) => [k, v?.length ?? null]))
-    );
     return curves;
   }, [animations]);
 
-  // Paws ko haath ki bone se jodo
   useLayoutEffect(() => {
     scene.updateMatrixWorld(true);
     const meta = scene.getObjectByName("metarig");
@@ -230,7 +201,6 @@ function Model({ speaking, typing, thinking }) {
         const bone = meta.getObjectByName(boneName);
         if (rig && bone && rig.parent !== bone) {
           bone.attach(rig);
-          console.log(`Paw jodi: ${rigName} -> ${boneName}`);
         }
       }
     }
@@ -240,14 +210,12 @@ function Model({ speaking, typing, thinking }) {
     });
   }, [scene]);
 
-  // Base pose (noramal.001 ka aakhri frame)
   useLayoutEffect(() => {
     const src = animations.find((a) => BASE_POSE_RE.test(a.name.trim()));
     if (!src) {
-      console.warn("⚠️ base pose wali action nahi mili");
+      console.warn("Base pose animation was not found.");
       return;
     }
-    let n = 0;
     for (const t of src.tracks) {
       const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(t.name);
       const node = THREE.PropertyBinding.findNode(scene, nodeName);
@@ -259,9 +227,7 @@ function Model({ speaking, typing, thinking }) {
       if (propertyName === "quaternion") node.quaternion.fromArray(v);
       else if (propertyName === "position") node.position.fromArray(v);
       else if (propertyName === "scale") node.scale.fromArray(v);
-      n++;
     }
-    console.log(`Base pose lagaya ("${src.name.trim()}"): ${n} tracks`);
   }, [scene, animations]);
 
   useLayoutEffect(() => {
@@ -281,7 +247,6 @@ function Model({ speaking, typing, thinking }) {
     });
   }, [scene]);
 
-  // Palak dhoondo
   useLayoutEffect(() => {
     const lids = [];
     scene.traverse((o) => {
@@ -314,22 +279,6 @@ function Model({ speaking, typing, thinking }) {
       return { node: o, base: o.userData.lidBase, close };
     });
     lidsRef.current = list;
-
-    // ---- DEBUG: ek hi line, copy karna aasaan ----
-    const eyeNames = [];
-    const meshNames = [];
-    const morphs = {};
-    scene.traverse((o) => {
-      if (/eye|lid|blink/i.test(o.name)) eyeNames.push(`${o.name}[${o.type}]`);
-      if (o.isMesh) {
-        meshNames.push(o.name);
-        if (o.morphTargetDictionary) morphs[o.name] = Object.keys(o.morphTargetDictionary);
-      }
-    });
-    console.log(
-      "DEBUG-EYE",
-      JSON.stringify({ lidsMile: list.map((l) => l.node.name), eyeNames, meshNames, morphs })
-    );
   }, [scene]);
 
   const clips = useMemo(() => {
@@ -337,19 +286,16 @@ function Model({ speaking, typing, thinking }) {
     for (const [name, re] of Object.entries(CLIP_PATTERNS)) {
       const src = animations.find((a) => re.test(a.name.trim()));
       if (!src) {
-        console.warn(`⚠️ "${name}" animation GLB mein nahi mili`);
+        console.warn(`Animation "${name}" was not found.`);
         continue;
       }
 
       let c = keepPoseTracks(src, name);
       if (c && name === "talk") c = withoutArmTracks(c, name);
-      if (!c) console.warn(`⚠️ "${name}" mein koi moving track nahi hai`);
+      if (!c) console.warn(`Animation "${name}" has no usable tracks.`);
       else result.push(c);
     }
 
-    result.forEach((c) =>
-      console.log(`Clip "${c.name}" ${c.duration.toFixed(2)}s:`, c.tracks.length, "tracks")
-    );
     return result;
   }, [animations]);
 
@@ -367,35 +313,26 @@ function Model({ speaking, typing, thinking }) {
     eyesRef.current = list;
   }, [scene]);
 
-  // Head + neck bone dhoondo
   useEffect(() => {
-    const bones = [];
     let head = null;
     let neck = null;
     scene.traverse((o) => {
       if (!o.isBone) return;
-      bones.push(o.name);
       if (!head && HEAD_BONE_RE.test(o.name)) head = o;
       if (!neck && NECK_BONE_RE.test(o.name)) neck = o;
     });
     headRecRef.current = Object.assign(makeBoneRec(), { bone: head });
     neckRecRef.current = Object.assign(makeBoneRec(), { bone: neck });
-    console.log("HEAD BONE:", head?.name ?? "NAHI MILI", "| NECK BONE:", neck?.name ?? "NAHI MILI");
-    if (!head) console.log("ALL BONES:", bones.join(", "));
   }, [scene]);
 
-  // UI mein kahin bhi click -> head us taraf ghume
-  // Box ke andar click -> head us taraf ghume
   useEffect(() => {
     const onClick = (e) => {
-      // sirf data-look-area wale box ke andar ka click
       const area = document.querySelector("[data-look-area]");
       if (area && !area.contains(e.target)) return;
 
       const canvas = gl.domElement;
       const r = canvas.getBoundingClientRect();
 
-      // head ki asli screen position (bone ki world position project karke)
       let cx = r.left + r.width / 2;
       let cy = r.top + r.height * 0.35;
       const headBone = headRecRef.current.bone;
@@ -411,14 +348,6 @@ function Model({ speaking, typing, thinking }) {
 
       lookTargetRef.current.yaw = nx * LOOK_MAX_YAW * LOOK_YAW_SIGN;
       lookTargetRef.current.pitch = ny * LOOK_MAX_PITCH * LOOK_PITCH_SIGN;
-      console.log(
-        "LOOK click",
-        JSON.stringify({
-          yaw: +lookTargetRef.current.yaw.toFixed(2),
-          pitch: +lookTargetRef.current.pitch.toFixed(2),
-          headBone: headRecRef.current.bone?.name ?? null,
-        })
-      );
 
       clearTimeout(lookTimerRef.current);
       lookTimerRef.current = setTimeout(() => {
@@ -427,7 +356,6 @@ function Model({ speaking, typing, thinking }) {
       }, LOOK_HOLD_MS);
     };
 
-    // capture phase: koi button/input stopPropagation kare tab bhi chalega
     window.addEventListener("pointerdown", onClick, true);
     return () => {
       window.removeEventListener("pointerdown", onClick, true);
@@ -435,17 +363,15 @@ function Model({ speaking, typing, thinking }) {
     };
   }, [camera, gl]);
 
-  // Ek baar chalne wala action (jump / headClick / eye / run)
   const playOneShot = useCallback((name, fade = 0.3) => {
     const act = actionsRef.current[name];
     if (!act) {
-      console.warn(`❌ action "${name}" nahi mili. Jo mili hain:`, Object.keys(actionsRef.current));
+      console.warn(`Animation action "${name}" is unavailable.`);
       return;
     }
-    console.log(`▶️ play: ${name} (${act.getClip().duration.toFixed(2)}s)`);
+
     oneShotRef.current = true;
 
-    // safety: agar "finished" event na aaye to bhi flag clip khatam hone ke baad chhoot jaye
     clearTimeout(oneShotTimerRef.current);
     oneShotTimerRef.current = setTimeout(() => {
       oneShotRef.current = false;
@@ -455,25 +381,22 @@ function Model({ speaking, typing, thinking }) {
     act.setLoop(THREE.LoopOnce, 1);
     act.clampWhenFinished = true;
     if (fade > 0) act.fadeIn(fade);
-    else act.setEffectiveWeight(1); // fadeOut ke baad weight 0 reh jaata hai, wapas 1 karo
+    else act.setEffectiveWeight(1);
     act.play();
   }, []);
 
-  // NEW: Plane.001 (badal) -> barish -> 4 sec baad "run", har 20 sec mein
   useRainCycle({ scene, busyRef, playOneShot });
 
-  // Har 6 sec mein eye animation + blink (sirf jab model free ho)
   const startEyeTimer = useCallback(() => {
     clearInterval(eyeTimerRef.current);
     eyeTimerRef.current = setInterval(() => {
       if (busyRef.current || oneShotRef.current) return;
-      console.log("👁 eye blink, palak mile:", lidsRef.current.length);
+
       blinkStartRef.current = performance.now() / 1000;
       playOneShot("eye", 0);
     }, EYE_INTERVAL_MS);
   }, [playOneShot]);
 
-  // Click head par hai ya nahi
   const isHeadHit = useCallback(
     (e) => {
       const chain = [];
@@ -483,7 +406,6 @@ function Model({ speaking, typing, thinking }) {
         o = o.parent;
       }
 
-      // sirf character ka box (Plane.001 / boond / barish ko ginti se bahar rakho)
       _box.makeEmpty();
       scene.children.forEach((ch) => {
         if (!ch.userData.ignoreBounds) _box.expandByObject(ch);
@@ -492,7 +414,6 @@ function Model({ speaking, typing, thinking }) {
       const byName = chain.some((n) => /head|face/i.test(n));
       const byHeight = rel > 1 - HEAD_TOP_FRACTION;
 
-      // Sabse pakka tareeka: click neck bone ke upar hai to head click
       let byBone = false;
       let neckY = null;
       const neckBone = neckRecRef.current.bone;
@@ -503,19 +424,6 @@ function Model({ speaking, typing, thinking }) {
       }
       const headHit = neckBone ? byBone || byName : byName || byHeight;
 
-      console.log(
-        "DEBUG-CLICK",
-        JSON.stringify({
-          chain: chain.join(" > "),
-          height: +rel.toFixed(2),
-          clickY: +e.point.y.toFixed(2),
-          neckY: neckY === null ? null : +neckY.toFixed(2),
-          byName,
-          byHeight,
-          byBone,
-          headHit,
-        })
-      );
       return headHit;
     },
     [scene]
@@ -528,10 +436,8 @@ function Model({ speaking, typing, thinking }) {
       ONE_SHOT_NAMES.forEach((n) => actionsRef.current[n]?.fadeOut(0.2));
 
       if (isHeadHit(e) && actionsRef.current.headClick) {
-        console.log("▶️ click: headClick");
         playOneShot("headClick");
       } else {
-        console.log("▶️ click: jump");
         playOneShot("jump");
       }
     },
@@ -541,7 +447,7 @@ function Model({ speaking, typing, thinking }) {
   useFrame((_, delta) => {
     let tb = 0;
     for (const name of Object.keys(BLINK_ACTIONS)) {
-      if (name === "eye") continue; // eye ka blink neeche time se chalta hai
+      if (name === "eye") continue;
       const a = actionsRef.current[name];
       const curve = blinkCurves[name];
       if (a && curve && a.isRunning()) {
@@ -549,7 +455,6 @@ function Model({ speaking, typing, thinking }) {
       }
     }
 
-    // eye blink: clip par depend nahi, seedha time se
     if (blinkStartRef.current >= 0) {
       const t = performance.now() / 1000 - blinkStartRef.current;
       if (t > BLINK_DURATION) blinkStartRef.current = -1;
@@ -575,14 +480,12 @@ function Model({ speaking, typing, thinking }) {
       lid.node.quaternion.copy(_lid).multiply(lid.base);
     }
 
-    // Head look-at: smooth current -> target, phir neck + head par offset
     const cur = lookCurrentRef.current;
     const tgt = lookTargetRef.current;
     const k = 1 - Math.exp(-LOOK_SMOOTH * delta);
     cur.yaw += (tgt.yaw - cur.yaw) * k;
     cur.pitch += (tgt.pitch - cur.pitch) * k;
 
-    // neck pehle, phir head (head ka parent-world neck ke baad nikalta hai)
     applyLookOffset(neckRecRef.current, cur.yaw * NECK_SHARE_YAW, cur.pitch * NECK_SHARE_PITCH);
     applyLookOffset(
       headRecRef.current,
@@ -591,7 +494,6 @@ function Model({ speaking, typing, thinking }) {
     );
   });
 
-  // intro / one-shot khatam hone par
   useEffect(() => {
     if (!mixer) return;
     const onFinished = (e) => {
@@ -608,7 +510,6 @@ function Model({ speaking, typing, thinking }) {
     return () => mixer.removeEventListener("finished", onFinished);
   }, [mixer, actions]);
 
-  // 1) Page load par "hayy(2)"
   useEffect(() => {
     const intro = actions.intro;
     if (!intro) {
@@ -622,7 +523,6 @@ function Model({ speaking, typing, thinking }) {
     return () => intro.stop();
   }, [actions]);
 
-  // 2) Talk
   useEffect(() => {
     const talk = actions.talk;
     if (!talk) return;
@@ -633,7 +533,6 @@ function Model({ speaking, typing, thinking }) {
     }
   }, [speaking, actions]);
 
-  // 3) Typing
   useEffect(() => {
     const t = actions.typing;
     if (!t) return;
@@ -644,7 +543,6 @@ function Model({ speaking, typing, thinking }) {
     }
   }, [typing, actions]);
 
-  // 3b) Thinking (API call se lekar voice shuru hone tak)
   useEffect(() => {
     const t = actions.thinking;
     if (!t) return;
@@ -656,7 +554,6 @@ function Model({ speaking, typing, thinking }) {
     }
   }, [thinking, typing, speaking, actions]);
 
-  // 4) Busy state + eye timer
   useEffect(() => {
     const busy = speaking || typing || thinking || !introDone;
     busyRef.current = busy;

@@ -1,9 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 const WS_URL = API_BASE.replace(/^http/, "ws") + "/ws";
 
-/* ------------------------------------------------------------------ *
- *  AUDIO PLAYER (ek hi <audio> element, mobile unlock ke saath)
- * ------------------------------------------------------------------ */
+
 let currentAudio = null;
 let currentResolve = null;
 let currentCleanup = null;
@@ -17,7 +15,7 @@ let unlocked = false;
 
 function silentWavUrl() {
   const sampleRate = 8000;
-  const samples = 800; // 0.1 sec ki khamoshi
+  const samples = 800; 
   const buf = new ArrayBuffer(44 + samples * 2);
   const v = new DataView(buf);
   const str = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
@@ -31,7 +29,7 @@ function silentWavUrl() {
 const UNLOCK_EVENTS = ["touchend", "click", "keydown"];
 
 function unlockAudio() {
-  if (unlocked || currentAudio) return; // awaaz chal rahi ho to chhedo mat
+  if (unlocked || currentAudio) return; 
   try {
     player.src = silentWavUrl();
     const p = player.play();
@@ -43,7 +41,7 @@ function unlockAudio() {
       })
       .catch(() => {});
   } catch {
-    /* agle tap par dobara koshish */
+    
   }
 }
 
@@ -194,14 +192,12 @@ function createStreamPlayer({ onStart, onEnd, onError }) {
   };
 }
 
-/* ------------------------------------------------------------------ *
- *  WEBSOCKET (browser <-> server)
- * ------------------------------------------------------------------ */
+
 let socket = null;
 let socketPromise = null;
 let reqId = 0;
 let activeId = null;
-const listeners = new Map(); // requestId -> handler
+const listeners = new Map(); 
 
 function getSocket() {
   if (socket && socket.readyState === WebSocket.OPEN) return Promise.resolve(socket);
