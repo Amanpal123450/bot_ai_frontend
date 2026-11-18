@@ -13,7 +13,7 @@ import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
 import { useRainCycle } from "./useRainCycle";
 
-const MODEL_URL = "/models/newWong1.glb";
+const MODEL_URL = "/models/kikoo-web.glb";
 const EYE_INTERVAL_MS = 6000;
 const HEAD_NECK_MARGIN = 0;
 const HEAD_TOP_FRACTION = 0.35;
