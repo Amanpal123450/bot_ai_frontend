@@ -13,7 +13,8 @@ import * as THREE from "three";
 import LottieBackground from "./Lottiebackground/Playgroundbackground";
 import { useRainCycle } from "./useRainCycle"; // NEW: Plane.001 + barish + run (har 20 sec)
 
-const MODEL_URL = "/models/4_backup.glb"; // GLB ko public/models/ mein rakho
+// const MODEL_URL = "/models/4_backup.glb"; // GLB ko public/models/ mein rakho
+const MODEL_URL = "/models/kikoo-web.glb"
 const EYE_INTERVAL_MS = 6000; // har 6 sec mein eye animation
 const HEAD_NECK_MARGIN = 0; // click neck bone ke is se upar = head. Gardan par click head lage to -0.1 karo
 const HEAD_TOP_FRACTION = 0.35; // model ke upar ke 35% hisse par click = head click
